@@ -911,20 +911,145 @@ def find_pika_to_korean(text: str) -> list[dict]:
     for key in sorted(current_dict.keys(), key=len, reverse=True):
         if key in remaining:
             estimates, reasons = estimate_registered(key, current_dict[key])
-            matches.append(make_match(key, current_dict[key], "등록된 표현", estimates, reasons))
+            matches.append(
+                make_match(
+                    key,
+                    current_dict[key],
+                    "등록된 표현",
+                    estimates,
+                    reasons,
+                )
+            )
             remaining = remaining.replace(key, " ")
 
-    for item in [part.strip() for part in remaining.split() if part.strip()]:
-        estimates, reasons = estimate_unknown_pika(item)
-        matches.append(make_match(item, ["등록된 뜻 없음"], "추정", estimates, reasons))
+    tokens = [part.strip() for part in remaining.split() if part.strip()]
+
+    known_words = []
+
+    for token in tokens:
+        if token in current_dict:
+            known_words.append(current_dict[token][0])
+        else:
+            estimates, reasons = estimate_unknown_pika(token)
+            matches.append(
+                make_match(
+                    token,
+                    ["등록된 뜻 없음"],
+                    "추정",
+                    estimates,
+                    reasons,
+                )
+            )
+
+    if known_words:
+        sentence = compose_sentence_from_tokens(known_words)
+
+        if sentence:
+            matches.insert(
+                0,
+                make_match(
+                    " ".join(tokens),
+                    [sentence],
+                    "조합 문장",
+                    ["등록 단어 조합 문장"],
+                    ["등록된 피카츄어 단어들을 자동으로 이어 문장처럼 조합했습니다."],
+                ),
+            )
 
     if not matches:
         estimates, reasons = estimate_unknown_pika(text)
-        matches.append(make_match(text, ["등록된 뜻 없음"], "추정", estimates, reasons))
+        matches.append(
+            make_match(
+                text,
+                ["등록된 뜻 없음"],
+                "추정",
+                estimates,
+                reasons,
+            )
+        )
 
     return matches
 
+def compose_sentence_from_tokens(tokens: list[str]) -> str | None:
+    if not tokens:
+        return None
 
+    particles = {
+        "나": "",
+        "내": "",
+        "너": "",
+        "우리": "",
+        "를": "",
+        "을": "",
+        "이": "",
+        "가": "",
+        "은": "",
+        "는": "",
+        "에": "",
+        "에서": "",
+        "와": "",
+        "과": "",
+        "도": "",
+        "만": "",
+        "좀": "",
+        "진짜": "",
+        "너무": "",
+        "제발": "",
+    }
+
+    cleaned = [t for t in tokens if t not in particles]
+
+    if not cleaned:
+        return None
+
+    if len(cleaned) == 1:
+        return cleaned[0]
+
+    verb_endings = [
+        "싶다",
+        "싶어",
+        "간다",
+        "간다",
+        "간다",
+        "간다",
+        "간다",
+        "먹다",
+        "먹고싶다",
+        "자고싶다",
+        "공부한다",
+        "해야한다",
+        "한다",
+        "한다",
+        "한다",
+    ]
+
+    subject = None
+    obj = []
+    verb = None
+
+    for token in cleaned:
+        if any(token.endswith(v) for v in verb_endings):
+            verb = token
+        elif subject is None:
+            subject = token
+        else:
+            obj.append(token)
+
+    sentence_parts = []
+
+    if subject:
+        sentence_parts.append(subject)
+
+    if obj:
+        sentence_parts.append(" ".join(obj))
+
+    if verb:
+        sentence_parts.append(verb)
+
+    sentence = " ".join(sentence_parts).strip()
+
+    return sentence if sentence else None
+    
 def find_korean_to_pika(text: str) -> list[dict]:
     raw_text = normalize_text(text)
     text = clean_korean(text)
