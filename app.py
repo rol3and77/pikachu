@@ -99,7 +99,7 @@ def build_reverse_dict() -> dict[str, list[str]]:
     return reverse
 
 
-BASE_REVERSE_DICT = build_reverse_dict()
+BASE_get_current_reverse_dict() = build_reverse_dict()
 
 
 def get_current_dict() -> dict[str, list[str]]:
@@ -568,7 +568,7 @@ def find_korean_to_pika(text: str) -> list[dict]:
     for key in sorted(reverse_dict.keys(), key=len, reverse=True):
         cleaned_key = clean_korean(key)
         if cleaned_key and cleaned_key not in used and cleaned_key in text:
-            matches.append(make_match(key, REVERSE_DICT[key], "부분 번역", ["입력 문장 안에 등록된 뜻이 포함됨"], [f'입력문 안에 등록된 한국어 뜻 "{key}"가 포함되어 있습니다.']))
+            matches.append(make_match(key, get_current_reverse_dict()[key], "부분 번역", ["입력 문장 안에 등록된 뜻이 포함됨"], [f'입력문 안에 등록된 한국어 뜻 "{key}"가 포함되어 있습니다.']))
             used.add(cleaned_key)
     if matches:
         return matches
