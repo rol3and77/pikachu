@@ -276,28 +276,27 @@ mode = st.radio(
     horizontal=True,
 )
 
-left_col, right_col = st.columns([1, 1], gap="large")
+input_col, output_col = st.columns([1, 1], gap="large")
 
-with left_col:
+with input_col:
     st.subheader("번역할 언어 입력")
-
     user_input = st.text_area(
-        "번역할 문장",
+        "",
         value="",
-        height=220,
+        height=260,
         placeholder="예: 피캇츄~! 피카피 피카!" if mode == "피카츄어 → 한국어" else "예: 안녕 한지우 알았어",
+        label_visibility="collapsed",
     )
 
-    translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
-
-
-
+with output_col:
+    st.subheader("해석 결과")
     st.markdown('<div class="result-panel">', unsafe_allow_html=True)
 
-    if not translate_clicked:
-        st.info("왼쪽에 문장을 입력하고 번역하기를 눌러주세요.")
-    elif not user_input.strip():
-        st.warning("번역할 문장을 입력해주세요.")
+    if not user_input.strip():
+        st.markdown(
+            '<div class="empty">왼쪽 입력칸에 문장을 입력하고 아래 번역하기 버튼을 눌러주세요.</div>',
+            unsafe_allow_html=True,
+        )
     else:
         matches = find_pika_to_korean(user_input) if mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
         sentence = make_sentence(matches, mode)
@@ -308,16 +307,6 @@ with left_col:
                 <div class="sentence-card">
                     <div class="small-label">문장으로 연결한 해석</div>
                     <div class="phrase">{sentence}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                """
-                <div class="sentence-card">
-                    <div class="small-label">문장 해석</div>
-                    <div class="phrase">단어가 2개 이상 해석되면 여기에 자연스럽게 이어진 문장이 표시됩니다.</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -343,6 +332,8 @@ with left_col:
             )
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
 
 st.divider()
 with st.expander("등록된 피카츄어 사전 보기"):
