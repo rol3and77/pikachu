@@ -355,14 +355,20 @@ with input_col:
         placeholder="예: 피캇츄~! 피카피 피카!" if mode == "피카츄어 → 한국어" else "예: 안녕 한지우 알았어",
         label_visibility="collapsed",
     )
+    translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
 
 with output_col:
     st.subheader("해석 결과")
     st.markdown('<div class="result-panel">', unsafe_allow_html=True)
 
-    if not user_input.strip():
+    if not translate_clicked:
         st.markdown(
-            '<div class="empty">왼쪽 입력칸에 문장을 입력하고 아래 번역하기 버튼을 눌러주세요.</div>',
+            '<div class="empty">왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.</div>',
+            unsafe_allow_html=True,
+        )
+    elif not user_input.strip():
+        st.markdown(
+            '<div class="empty">번역할 문장을 입력해주세요.</div>',
             unsafe_allow_html=True,
         )
     else:
@@ -380,38 +386,36 @@ with output_col:
                 unsafe_allow_html=True,
             )
 
-        st.markdown("#### 단어별 해석")
-        for match in matches:
-            meanings = match["meanings"]
-            if len(meanings) == 1:
-                meaning_html = meanings[0]
-            else:
-                meaning_html = "<ul>" + "".join(f"<li>{item}</li>" for item in meanings) + "</ul>"
+        with st.expander("단어별 해석 보기", expanded=False):
+            for match in matches:
+                meanings = match["meanings"]
+                if len(meanings) == 1:
+                    meaning_html = meanings[0]
+                else:
+                    meaning_html = "<ul>" + "".join(f"<li>{item}</li>" for item in meanings) + "</ul>"
 
-            estimates = match.get("estimates", [])
-            if estimates:
-                estimate_html = "<hr style='border:0;border-top:1px solid #efd56f;margin:0.75rem 0;'>"
-                estimate_html += "<b>추정 해석</b>"
-                estimate_html += "<ul>" + "".join(f"<li>{item}</li>" for item in estimates) + "</ul>"
-            else:
-                estimate_html = ""
+                estimates = match.get("estimates", [])
+                if estimates:
+                    estimate_html = "<hr style='border:0;border-top:1px solid #efd56f;margin:0.75rem 0;'>"
+                    estimate_html += "<b>추정 해석</b>"
+                    estimate_html += "<ul>" + "".join(f"<li>{item}</li>" for item in estimates) + "</ul>"
+                else:
+                    estimate_html = ""
 
-            st.markdown(
-                f"""
-                <div class="result-card">
-                    <div class="small-label">{match['type']}</div>
-                    <div class="phrase">{match['phrase']}</div>
-                    <div><b>등록된 뜻</b></div>
-                    <div>{meaning_html}</div>
-                    <div>{estimate_html}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                st.markdown(
+                    f"""
+                    <div class="result-card">
+                        <div class="small-label">{match['type']}</div>
+                        <div class="phrase">{match['phrase']}</div>
+                        <div><b>등록된 뜻</b></div>
+                        <div>{meaning_html}</div>
+                        <div>{estimate_html}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
 
 st.divider()
 with st.expander("등록된 피카츄어 사전 보기"):
