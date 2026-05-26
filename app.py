@@ -176,40 +176,102 @@ def estimate_registered(phrase: str, meanings: list[str]) -> tuple[list[str], li
     return estimates, reasons
 
 
+def analyze_pika_pattern(word: str) -> tuple[list[str], list[str]]:
+    estimates = []
+    reasons = []
+    clean = word.replace(" ", "")
+
+    pika_count = clean.count("피카")
+    pi_count = clean.count("피")
+    ka_count = clean.count("카")
+    chu_count = clean.count("츄")
+    long_vowel_count = clean.count("우") + clean.count("아") + clean.count("이")
+    exclamation_count = clean.count("!")
+    question_count = clean.count("?")
+    dash_count = clean.count("-")
+    wave_count = clean.count("~")
+
+    if question_count > 0:
+        if wave_count > 0 or dash_count > 0:
+            estimates.append("상대의 상태를 확인하거나 부드럽게 되묻는 표현")
+            reasons.append("물음표와 물결표/하이픈이 함께 있어 단순 질문보다 조심스럽거나 부드러운 확인 표현으로 보았습니다.")
+        else:
+            estimates.append("질문 또는 의문 표현")
+            reasons.append("물음표가 포함되어 있어 질문형 표현으로 분류했습니다.")
+
+    if exclamation_count >= 2:
+        estimates.append("흥분, 전투, 강한 외침")
+        reasons.append("느낌표가 여러 번 반복되어 감정이 강하거나 전투 상황에서 외치는 표현으로 보았습니다.")
+    elif exclamation_count == 1:
+        estimates.append("강조 또는 감정 반응")
+        reasons.append("느낌표가 포함되어 있어 평서문보다 강조된 감정 반응으로 보았습니다.")
+
+    if "우우" in clean or "츄우" in clean or long_vowel_count >= 5:
+        estimates.append("전기 기술 또는 에너지를 모으는 공격 표현")
+        reasons.append("'우우', '츄우'처럼 소리를 길게 끄는 패턴은 기술명이나 에너지 방출 표현에서 자주 쓰일 수 있습니다.")
+
+    if dash_count >= 2:
+        estimates.append("망설임, 조심스러운 감정, 특정 대상을 부르는 표현")
+        reasons.append("하이픈이 여러 번 들어가 말이 끊기는 느낌이 강하므로 망설임이나 조심스러운 호칭으로 추정했습니다.")
+    elif dash_count == 1:
+        estimates.append("짧게 끊어 말하는 감정 표현")
+        reasons.append("하이픈이 있어 일반 감탄보다 끊어서 말하는 표현으로 보았습니다.")
+
+    if wave_count > 0:
+        estimates.append("부드럽거나 감정을 늘여 말하는 표현")
+        reasons.append("물결표가 있어 말끝을 늘이는 감정 표현으로 추정했습니다.")
+
+    if pika_count >= 4:
+        estimates.append("고조된 전투 기술명 또는 긴장감 있는 외침")
+        reasons.append("'피카'가 여러 번 반복되어 단순 호칭보다 리듬감 있는 기술명 계열 표현으로 보았습니다.")
+    elif pika_count >= 2:
+        estimates.append("기쁨, 호명, 반복 강조 표현")
+        reasons.append("'피카' 반복이 있어 단어 하나보다 강조된 감정이나 호명 표현으로 보았습니다.")
+
+    if chu_count >= 2 and exclamation_count == 0:
+        estimates.append("친근한 호칭 또는 부드러운 반응")
+        reasons.append("'츄'가 반복되지만 강한 느낌표가 없어 공격보다는 부드러운 반응 쪽으로 추정했습니다.")
+
+    if pi_count + ka_count + chu_count <= 3 and exclamation_count == 0 and question_count == 0:
+        estimates.append("짧은 호칭 또는 짧은 반응")
+        reasons.append("표현 길이가 짧고 강한 기호가 없어 짧은 호칭이나 간단한 반응일 가능성이 있습니다.")
+
+    return estimates, reasons
+
+
 def estimate_unknown_pika(word: str) -> tuple[list[str], list[str]]:
     estimates = []
     reasons = []
+
+    pattern_estimates, pattern_reasons = analyze_pika_pattern(word)
+    estimates += pattern_estimates
+    reasons += pattern_reasons
+
     similar = similarity_candidates(word)
     if similar:
         best = similar[0]
-        estimates.append(best["meaning"])
-        for item in similar:
-            reasons.append(
-                f'등록 표현 "{item["candidate"]}"와 유사합니다. 등록 뜻은 "{item["meaning"]}"이고 유사도는 {item["score"]:.2f}, 신뢰도는 {item["confidence"]}입니다.'
+        if best["score"] >= 0.78:
+            estimates.insert(0, best["meaning"])
+            reasons.insert(
+                0,
+                f'등록 표현 "{best["candidate"]}"와 매우 유사하여 대표 추정에 반영했습니다. 등록 뜻은 "{best["meaning"]}"이고 유사도는 {best["score"]:.2f}입니다.'
             )
-    if "우우" in word or "츄우" in word:
-        estimates.append("전기 기술 또는 강한 공격 표현")
-        reasons.append("길게 늘어지는 '우우' 또는 '츄우' 패턴이 등록된 전기 기술 표현에서 자주 나타납니다.")
-    if "?" in word:
-        estimates.append("질문, 확인, 되묻는 표현")
-        reasons.append("물음표가 포함되어 있어 질문형 표현으로 추정했습니다.")
-    if "!" in word and len(word) > 12:
-        estimates.append("기술명 또는 강한 감정 표현")
-        reasons.append("표현이 길고 느낌표가 있어 기술명 또는 강한 감정 표현으로 추정했습니다.")
-    elif "!" in word:
-        estimates.append("강조, 기쁨, 놀람 계열 표현")
-        reasons.append("느낌표가 포함되어 있어 강조나 감정 반응으로 추정했습니다.")
-    if "~" in word:
-        estimates.append("감정을 길게 늘여 말하는 표현")
-        reasons.append("물결표가 포함되어 있어 감정을 늘여 말하는 표현으로 추정했습니다.")
-    if "-" in word:
-        estimates.append("조심스럽거나 끊어서 말하는 표현")
-        reasons.append("하이픈이 포함되어 있어 말을 끊거나 조심스럽게 말하는 표현으로 추정했습니다.")
+        else:
+            estimates.append(f'{best["meaning"]} 계열일 가능성')
+            reasons.append(
+                f'가장 가까운 등록 표현은 "{best["candidate"]}"입니다. 등록 뜻은 "{best["meaning"]}"이고 유사도는 {best["score"]:.2f}, 신뢰도는 {best["confidence"]}입니다.'
+            )
+
+        for item in similar[1:]:
+            reasons.append(
+                f'비교 후보: "{item["candidate"]}" → "{item["meaning"]}" / 유사도 {item["score"]:.2f}, 신뢰도 {item["confidence"]}'
+            )
+
     estimates = list(dict.fromkeys(estimates))
     reasons = list(dict.fromkeys(reasons))
     if not estimates:
-        estimates = ["추정 불가"]
-        reasons = ["등록된 표현과 충분히 비슷한 단어를 찾지 못했고, 뚜렷한 기호 패턴도 없습니다."]
+        estimates = ["새로운 피카츄어 표현"]
+        reasons = ["등록된 표현과 충분히 비슷하지는 않지만, 피/카/츄 계열 음절로 구성되어 있어 새로운 피카츄어 표현으로 추정했습니다."]
     return estimates, reasons
 
 
