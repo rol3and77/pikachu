@@ -905,6 +905,43 @@ def find_pika_to_korean(text: str) -> list[dict]:
         estimates, reasons = estimate_registered(text, current_dict[text])
         return [make_match(text, current_dict[text], "등록된 표현", estimates, reasons)]
 
+    tokens = [part.strip() for part in text.split() if part.strip()]
+
+    if len(tokens) >= 2:
+        known_words = []
+        unknown_matches = []
+
+        for token in tokens:
+            if token in current_dict:
+                known_words.append(current_dict[token][0])
+            else:
+                estimates, reasons = estimate_unknown_pika(token)
+                unknown_matches.append(
+                    make_match(
+                        token,
+                        ["등록된 뜻 없음"],
+                        "추정",
+                        estimates,
+                        reasons,
+                    )
+                )
+
+        if known_words:
+            sentence = compose_sentence_from_tokens(known_words)
+
+            if sentence:
+                result = [
+                    make_match(
+                        text,
+                        [sentence],
+                        "조합 문장",
+                        ["등록 단어 조합 문장"],
+                        ["등록된 피카츄어 단어들을 자동으로 이어 문장처럼 조합했습니다."],
+                    )
+                ]
+                result.extend(unknown_matches)
+                return result
+
     matches = []
     remaining = text
 
@@ -922,39 +959,17 @@ def find_pika_to_korean(text: str) -> list[dict]:
             )
             remaining = remaining.replace(key, " ")
 
-    tokens = [part.strip() for part in remaining.split() if part.strip()]
-
-    known_words = []
-
-    for token in tokens:
-        if token in current_dict:
-            known_words.append(current_dict[token][0])
-        else:
-            estimates, reasons = estimate_unknown_pika(token)
-            matches.append(
-                make_match(
-                    token,
-                    ["등록된 뜻 없음"],
-                    "추정",
-                    estimates,
-                    reasons,
-                )
+    for item in [part.strip() for part in remaining.split() if part.strip()]:
+        estimates, reasons = estimate_unknown_pika(item)
+        matches.append(
+            make_match(
+                item,
+                ["등록된 뜻 없음"],
+                "추정",
+                estimates,
+                reasons,
             )
-
-    if known_words:
-        sentence = compose_sentence_from_tokens(known_words)
-
-        if sentence:
-            matches.insert(
-                0,
-                make_match(
-                    " ".join(tokens),
-                    [sentence],
-                    "조합 문장",
-                    ["등록 단어 조합 문장"],
-                    ["등록된 피카츄어 단어들을 자동으로 이어 문장처럼 조합했습니다."],
-                ),
-            )
+        )
 
     if not matches:
         estimates, reasons = estimate_unknown_pika(text)
