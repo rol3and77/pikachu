@@ -121,6 +121,57 @@ def resolve_mode(text: str, auto_mode: bool, manual_mode: str) -> str:
     return "피카츄어 → 한국어" if detect_language(text) == "pika" else "한국어 → 피카츄어"
 
 
+def match_quality(matches: list[dict]) -> int:
+    if not matches:
+        return 0
+    score = 0
+    for match in matches:
+        match_type = match.get("type", "")
+        meanings = match.get("meanings", [])
+        estimates = match.get("estimates", [])
+        if match_type in ["등록된 표현", "정확히 일치"]:
+            score += 100
+        elif match_type == "부분 번역":
+            score += 70
+        elif match_type == "추정":
+            score += 35
+        if meanings and meanings[0] not in ["등록된 뜻 없음", "등록된 표현 없음"]:
+            score += 25
+        if estimates:
+            score += 15
+    return score
+
+
+def translate_safely(text: str, auto_mode: bool, manual_mode: str) -> tuple[str, list[dict]]:
+    if not text.strip():
+        return resolve_mode(text, auto_mode, manual_mode), []
+
+    if not auto_mode:
+        mode = manual_mode
+        matches = find_pika_to_korean(text) if mode == "피카츄어 → 한국어" else find_korean_to_pika(text)
+        if matches:
+            return mode, matches
+        estimates, reasons = estimate_unknown_pika(text)
+        return mode, [make_match(text, ["등록된 뜻 없음"], "추정", estimates, reasons)]
+
+    pika_matches = find_pika_to_korean(text)
+    korean_matches = find_korean_to_pika(text)
+    pika_score = match_quality(pika_matches)
+    korean_score = match_quality(korean_matches)
+
+    # 피카츄어처럼 보이면 동점이어도 피카츄어 해석을 우선한다.
+    detected = detect_language(text)
+    if detected == "pika" and pika_score >= korean_score - 20:
+        return "피카츄어 → 한국어", pika_matches
+    if korean_score > pika_score:
+        return "한국어 → 피카츄어", korean_matches
+    if pika_matches:
+        return "피카츄어 → 한국어", pika_matches
+
+    estimates, reasons = estimate_unknown_pika(text)
+    return "피카츄어 → 한국어", [make_match(text, ["등록된 뜻 없음"], "추정", estimates, reasons)]
+
+
 def confidence_label(score: float) -> str:
     if score >= 0.78:
         return "높음"
@@ -287,7 +338,7 @@ def estimate_unknown_pika(word: str) -> tuple[list[str], list[str]]:
 
     estimates = list(dict.fromkeys(estimates))
     reasons = list(dict.fromkeys(reasons))
-    return estimate
+    return estimates, reasons
 
 
 def make_match(phrase: str, meanings: list[str], match_type: str, estimates=None, reasons=None) -> dict:
@@ -449,8 +500,7 @@ with left:
                 "message": "번역할 문장을 입력해주세요.",
             }
         else:
-            mode = resolve_mode(user_input, auto_mode, manual_mode)
-            matches = find_pika_to_korean(user_input) if mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
+            mode, matches = translate_safely(user_input, auto_mode, manual_mode)
             sentence = representative_sentence(matches, mode)
             st.session_state.translation_result = {
                 "status": "ok",
