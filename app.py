@@ -15,10 +15,6 @@ st.set_page_config(
 )
 
 
-# =========================================================
-# 기본 피카츄어 사전
-# =========================================================
-
 PICA_DICT = {
     "피캇츄~!": ["안녕!"],
     "피카피": ["한지우(사토시)"],
@@ -67,10 +63,6 @@ PICA_DICT = {
 }
 
 
-# =========================================================
-# 기본 유틸
-# =========================================================
-
 def normalize_text(text: str) -> str:
     text = str(text)
     text = text.replace("！", "!").replace("？", "?").replace("，", ",")
@@ -87,10 +79,6 @@ def clean_korean(text: str) -> str:
 def normalize_meaning_key(text: str) -> str:
     return clean_korean(text).replace(" ", "").strip()
 
-
-# =========================================================
-# GitHub 자동 저장 / 불러오기
-# =========================================================
 
 def github_config_ready() -> bool:
     required_keys = [
@@ -132,7 +120,6 @@ def clean_custom_dict(data: dict) -> dict[str, list[str]]:
             continue
 
         cleaned[pika] = []
-
         for meaning in meanings:
             meaning = normalize_text(str(meaning))
             if meaning and meaning not in cleaned[pika]:
@@ -162,7 +149,6 @@ def load_custom_dict_from_github() -> dict[str, list[str]]:
         data = response.json()
         content = base64.b64decode(data["content"]).decode("utf-8")
         parsed = json.loads(content)
-
         return clean_custom_dict(parsed)
 
     except Exception:
@@ -189,15 +175,8 @@ def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool,
         if get_response.status_code == 200:
             sha = get_response.json().get("sha")
 
-        json_text = json.dumps(
-            custom_dict,
-            ensure_ascii=False,
-            indent=2,
-        )
-
-        encoded_content = base64.b64encode(
-            json_text.encode("utf-8")
-        ).decode("utf-8")
+        json_text = json.dumps(custom_dict, ensure_ascii=False, indent=2)
+        encoded_content = base64.b64encode(json_text.encode("utf-8")).decode("utf-8")
 
         payload = {
             "message": "Update custom Pikachu dictionary",
@@ -224,10 +203,6 @@ def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool,
         return False, str(error)
 
 
-# =========================================================
-# 세션 상태
-# =========================================================
-
 if "custom_pica_dict" not in st.session_state:
     st.session_state.custom_pica_dict = load_custom_dict_from_github()
 
@@ -240,10 +215,6 @@ if "example_text" not in st.session_state:
 if "show_all_results" not in st.session_state:
     st.session_state.show_all_results = False
 
-
-# =========================================================
-# 사전 관련
-# =========================================================
 
 def get_current_dict() -> dict[str, list[str]]:
     merged = {key: value[:] for key, value in PICA_DICT.items()}
@@ -289,18 +260,12 @@ def get_current_reverse_dict() -> dict[str, list[str]]:
     for pika, meanings in current.items():
         for meaning in meanings:
             for alias in get_aliases(meaning):
-                keys = {
-                    alias,
-                    clean_korean(alias),
-                    normalize_meaning_key(alias),
-                }
+                keys = {alias, clean_korean(alias), normalize_meaning_key(alias)}
 
                 for key in keys:
                     if not key:
                         continue
-
                     reverse.setdefault(key, [])
-
                     if pika not in reverse[key]:
                         reverse[key].append(pika)
 
@@ -376,10 +341,6 @@ def meaning_usage_hint(meaning: str) -> str:
     return "문맥에 따라 사용"
 
 
-# =========================================================
-# 언어 감지
-# =========================================================
-
 def detect_language(text: str) -> str:
     text = normalize_text(text)
     if not text:
@@ -405,7 +366,6 @@ def detect_language(text: str) -> str:
         "하고", "싶", "원해", "바라", "됐으면", "해야", "해야되", "하기",
         "하고싶", "가고싶", "먹고싶", "자고싶", "나", "너", "우리", "내",
         "오늘", "내일", "어제", "지금", "진짜", "너무", "개", "겁나", "완전", "좀",
-
         "종강", "개강", "학교", "대학", "대학교", "수업", "강의", "교수", "조교",
         "출석", "결석", "지각", "과제", "레포트", "보고서", "발표", "팀플",
         "조별", "조모임", "실험", "실습", "퀴즈", "시험", "중간", "기말",
@@ -413,7 +373,6 @@ def detect_language(text: str) -> str:
         "수강신청", "전공", "교양", "도서관", "열람실", "기숙사", "자취",
         "통학", "캠퍼스", "학식", "학생회관", "동아리", "졸업", "취업",
         "인턴", "스펙", "자소서", "면접", "알바", "장학금", "등록금",
-
         "피곤", "힘들", "지침", "지쳐", "졸려", "졸림", "잠와", "잠오",
         "배고", "배불", "아파", "아픔", "우울", "슬퍼", "울고", "외로",
         "공허", "불안", "걱정", "무서", "떨려", "긴장", "멘붕", "현타",
@@ -422,13 +381,11 @@ def detect_language(text: str) -> str:
         "행복", "기뻐", "최고", "개꿀", "꿀", "드디어", "재밌", "웃겨",
         "설레", "감동", "괜찮", "괜찬", "문제없", "오케이", "ㅇㅋ",
         "응", "맞아", "알았", "그래", "아니", "몰라",
-
         "집", "가기", "가고", "가자", "먹", "밥", "술", "커피", "카페",
         "편의점", "치킨", "라면", "마라탕", "떡볶이", "자고", "잠",
         "쉬고", "쉬자", "놀고", "놀자", "게임", "유튜브", "넷플",
         "노래방", "피시방", "공부", "암기", "복습", "예습", "벼락치기",
         "밤샘", "새벽", "운동", "약속", "데이트", "친구",
-
         "왜", "뭐", "무슨", "어떻게", "언제", "어디", "누구", "몇", "얼마",
         "가능", "될까", "맞나", "끝", "끝나", "끝났", "마무리",
         "탈출", "방학", "쉬고싶", "자유", "해방", "살려", "도망",
@@ -454,10 +411,6 @@ def resolve_mode(text: str, auto_mode: bool, manual_mode: str) -> str:
         return manual_mode
     return "피카츄어 → 한국어" if detect_language(text) == "pika" else "한국어 → 피카츄어"
 
-
-# =========================================================
-# 피카츄어 추정
-# =========================================================
 
 def confidence_label(score: float) -> str:
     if score >= 0.78:
@@ -539,20 +492,16 @@ def pattern_score_estimation(word: str) -> tuple[list[str], list[str]]:
         add_score(scores, "기술명 계열 표현", 35, "표현이 길고 느낌표가 있어 일반 대화보다 기술명에 가깝습니다.")
     if pika >= 4:
         add_score(scores, "고조된 기술명 계열 표현", 40, "'피카'가 여러 번 반복되어 리듬이 있는 기술명 패턴에 가깝습니다.")
-
     if ex == 1 and length <= 8:
         add_score(scores, "짧은 긍정 또는 감정 반응", 30, "짧은 표현에 느낌표가 하나 있어 간단한 반응이나 감정 표현으로 보입니다.")
     if wave >= 1 and q == 0:
         add_score(scores, "부드럽거나 기분 좋은 감정 표현", 30, "물결표가 있어 말끝을 늘이는 감정 표현으로 보입니다.")
     if dash >= 1 and q == 0:
         add_score(scores, "망설임 또는 조심스러운 감정 표현", 28, "하이픈이 있어 말이 끊기며 조심스럽거나 미안한 느낌을 줄 수 있습니다.")
-
     if clean == "츄" or clean.startswith("츄-"):
         add_score(scores, "부정 또는 거절 표현", 45, "등록 사전에서 '츄-'가 부정/거절 의미로 쓰이므로 비슷한 부정 반응으로 볼 수 있습니다.")
-
     if clean.startswith("피카") and ex == 1 and q == 0 and length <= 6:
         add_score(scores, "긍정 또는 짧은 대답", 35, "짧은 '피카' 계열 감탄은 응답이나 긍정 표현으로 쓰일 가능성이 있습니다.")
-
     if 4 <= length <= 8 and ex == 0 and q == 0 and long_u <= 1:
         add_score(scores, "인물 또는 포켓몬을 부르는 호칭", 35, "길이가 짧고 강한 기호가 없어 특정 대상을 부르는 호칭일 가능성이 있습니다.")
     if pi + ka + chu >= 4 and ex == 0 and q == 0:
@@ -638,10 +587,6 @@ def estimate_registered(phrase: str, meanings: list[str]) -> tuple[list[str], li
     return estimates, reasons
 
 
-# =========================================================
-# 한국어 → 피카츄어 생성
-# =========================================================
-
 def add_intent_score(scores: dict, intent: str, pika: str, points: int, reason: str):
     if intent not in scores:
         scores[intent] = {"score": 0, "pika": pika, "reasons": []}
@@ -661,70 +606,21 @@ def expression_length_level(text: str) -> str:
 def pick_pika_expression(intent: str, text: str) -> str:
     level = expression_length_level(text)
     compact = clean_korean(text).replace(" ", "")
-
     intense = any(token in compact for token in ["진짜", "너무", "개", "완전", "제발", "살려", "미친", "ㅈㄴ", "겁나"])
 
     table = {
-        "positive": {
-            "short": ["피카!"],
-            "medium": ["챠아~!"],
-            "long": ["피카카~ 피카츄~!"],
-        },
-        "negative": {
-            "short": ["츄-"],
-            "medium": ["피-카..."],
-            "long": ["피-카... 츄우..."],
-        },
-        "tired": {
-            "short": ["핏..."],
-            "medium": ["피-카츄..."],
-            "long": ["피-카... 츄우..."],
-        },
-        "wish": {
-            "short": ["피카~"],
-            "medium": ["피카아~ 츄..."],
-            "long": ["피카아~ 츄우..."],
-        },
-        "escape": {
-            "short": ["츄우..."],
-            "medium": ["피카아... 츄우우..."],
-            "long": ["피이카아... 츄우우우..."],
-        },
-        "question": {
-            "short": ["피카?"],
-            "medium": ["피~카~?"],
-            "long": ["피~카~츄~?"],
-        },
-        "sorry": {
-            "short": ["피-"],
-            "medium": ["피-카츄"],
-            "long": ["피-카... 츄..."],
-        },
-        "yes": {
-            "short": ["피!"],
-            "medium": ["피카!"],
-            "long": ["피카! 피카츄!"],
-        },
-        "battle": {
-            "short": ["핏카!"],
-            "medium": ["피이카-피카!"],
-            "long": ["피이카아!! 츄우우!!"],
-        },
-        "food": {
-            "short": ["피카?"],
-            "medium": ["피카츄~ 피카!"],
-            "long": ["피카피카~ 츄우~ 피카!"],
-        },
-        "school": {
-            "short": ["피카..."],
-            "medium": ["피카아... 피-카츄..."],
-            "long": ["피카아... 피-카츄... 츄우..."],
-        },
-        "default": {
-            "short": ["피카?"],
-            "medium": ["핏카츄~"],
-            "long": ["핏카츄~ 피카!"],
-        },
+        "positive": {"short": ["피카!"], "medium": ["챠아~!"], "long": ["피카카~ 피카츄~!"]},
+        "negative": {"short": ["츄-"], "medium": ["피-카..."], "long": ["피-카... 츄우..."]},
+        "tired": {"short": ["핏..."], "medium": ["피-카츄..."], "long": ["피-카... 츄우..."]},
+        "wish": {"short": ["피카~"], "medium": ["피카아~ 츄..."], "long": ["피카아~ 츄우..."]},
+        "escape": {"short": ["츄우..."], "medium": ["피카아... 츄우우..."], "long": ["피이카아... 츄우우우..."]},
+        "question": {"short": ["피카?"], "medium": ["피~카~?"], "long": ["피~카~츄~?"]},
+        "sorry": {"short": ["피-"], "medium": ["피-카츄"], "long": ["피-카... 츄..."]},
+        "yes": {"short": ["피!"], "medium": ["피카!"], "long": ["피카! 피카츄!"]},
+        "battle": {"short": ["핏카!"], "medium": ["피이카-피카!"], "long": ["피이카아!! 츄우우!!"]},
+        "food": {"short": ["피카?"], "medium": ["피카츄~ 피카!"], "long": ["피카피카~ 츄우~ 피카!"]},
+        "school": {"short": ["피카..."], "medium": ["피카아... 피-카츄..."], "long": ["피카아... 피-카츄... 츄우..."]},
+        "default": {"short": ["피카?"], "medium": ["핏카츄~"], "long": ["핏카츄~ 피카!"]},
     }
 
     result = table.get(intent, table["default"])[level][0]
@@ -787,10 +683,8 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
         add("긍정 또는 동의 표현", "yes", 75, "응, 맞아, 알았어 계열 표현을 짧은 긍정 피카츄어로 변환했습니다.")
     if has_any(["아니", "ㄴㄴ", "노노", "싫어"]):
         add_intent_score(scores, "부정 또는 거절 표현", "츄-", 75, "아니, 싫어 계열 표현은 등록 표현 츄-와 연결됩니다.")
-
     if "?" in original or has_any(["왜", "뭐", "무슨", "어떻게", "언제", "어디", "누구", "몇", "얼마", "될까", "가능", "맞나"]):
         add("질문 또는 되묻는 표현", "question", 60, "질문어 또는 물음표가 있어 되묻는 표현으로 판단했습니다.")
-
     if has_any(["배고", "밥먹", "먹고싶", "마라탕", "떡볶이", "치킨", "라면", "학식"]):
         add("배고픔 또는 먹고 싶은 표현", "food", 50, "배고픔이나 음식 욕구가 있어 밝은 요구 표현으로 변환했습니다.")
     if has_any(["술", "맥주", "소주", "취하고", "마시고싶"]):
@@ -833,10 +727,6 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
 
     return estimates, list(dict.fromkeys(reasons))
 
-
-# =========================================================
-# 번역 함수
-# =========================================================
 
 def find_pika_to_korean(text: str) -> list[dict]:
     text = normalize_text(text)
@@ -926,15 +816,7 @@ def find_korean_to_pika(text: str) -> list[dict]:
         return matches
 
     estimates, reasons = estimate_korean_to_pika(text)
-    return [
-        make_match(
-            text,
-            ["등록된 표현 없음"],
-            "한국어 문장 추정",
-            estimates,
-            reasons,
-        )
-    ]
+    return [make_match(text, ["등록된 표현 없음"], "한국어 문장 추정", estimates, reasons)]
 
 
 def match_quality(matches: list[dict]) -> int:
@@ -942,7 +824,6 @@ def match_quality(matches: list[dict]) -> int:
         return 0
 
     score = 0
-
     for match in matches:
         match_type = match.get("type", "")
         meanings = match.get("meanings", [])
@@ -998,10 +879,6 @@ def translate_safely(text: str, auto_mode: bool, manual_mode: str) -> tuple[str,
 
     return "피카츄어 → 한국어", pika_matches
 
-
-# =========================================================
-# 학습 / 대표 해석
-# =========================================================
 
 def clean_learned_meaning(korean_meaning: str) -> str:
     meaning = normalize_text(korean_meaning)
@@ -1059,19 +936,6 @@ def learn_generated_translation(korean_text: str, pika_text: str) -> bool:
 
     st.session_state.custom_pica_dict = custom
     return False
-
-
-def is_new_pika_expression(user_input: str, matches: list[dict]) -> bool:
-    text = normalize_text(user_input)
-    current_dict = get_current_dict()
-
-    if not text or text in current_dict:
-        return False
-
-    if not matches:
-        return False
-
-    return any(match.get("type") == "추정" for match in matches)
 
 
 def register_selected_pika_meaning(pika_text: str, selected_meaning: str) -> tuple[bool, str]:
@@ -1159,21 +1023,17 @@ def representative_items(matches: list[dict]) -> list[dict]:
 
 def representative_sentence(matches: list[dict], mode: str) -> str:
     items = representative_items(matches)
-
     if not items:
         return ""
-
     return "\n".join(item["text"] for item in items)
 
 
 def search_dictionary(query: str) -> list[tuple[str, list[str]]]:
     query = clean_korean(query)
-
     if not query:
         return []
 
     results = []
-
     for pika, meanings in get_current_dict().items():
         joined = " ".join([pika] + meanings)
         if query in clean_korean(joined):
@@ -1213,277 +1073,399 @@ def render_match_card(match: dict):
                 st.write("-", reason)
 
 
-# =========================================================
-# UI
-# =========================================================
-
 st.markdown(
     """
     <style>
     .stApp {
-        background:
-            radial-gradient(circle at top left, #fff2a8 0, transparent 35%),
-            radial-gradient(circle at bottom right, #ffe066 0, transparent 30%),
-            #fff8d6;
+        background: linear-gradient(180deg, #fff9df 0%, #fffdf5 45%, #ffffff 100%);
+    }
+    .block-container {
+        max-width: 1180px;
+        padding-top: 2.2rem;
+        padding-bottom: 4rem;
+    }
+    .app-header {
+        background: #ffffff;
+        border: 1px solid #f1df91;
+        border-radius: 24px;
+        padding: 1.4rem 1.6rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 10px 26px rgba(117, 91, 0, 0.08);
     }
     .main-title {
-        font-size: 3rem;
+        font-size: 2.35rem;
         font-weight: 900;
         letter-spacing: -0.06em;
-        color: #5c3b18;
-        margin-bottom: 0.25rem;
+        color: #3f2b00;
+        margin: 0;
+        line-height: 1.15;
     }
     .subtitle {
-        color: #75684f;
-        font-size: 1.05rem;
-        line-height: 1.7;
-        margin-bottom: 1.2rem;
+        color: #7a6a38;
+        font-size: 0.98rem;
+        line-height: 1.65;
+        margin-top: 0.55rem;
     }
-    .result-panel {
-        min-height: 220px;
-        background: #fffdf3;
-        border: 2px dashed #ead17d;
-        border-radius: 18px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-    }
-    .sentence-card {
-        background: #ffffff;
-        border: 2px solid #ffd43b;
-        border-radius: 18px;
-        padding: 1rem;
-        box-shadow: 0 8px 18px rgba(242,183,5,0.14);
-    }
-    .small-label {
+    .mini-badge {
         display: inline-block;
-        background: white;
-        color: #8a6a00;
-        border: 1px solid #ecd276;
+        background: #ffe76a;
+        color: #4a3900;
         border-radius: 999px;
-        padding: 0.2rem 0.55rem;
-        font-size: 0.75rem;
+        padding: 0.24rem 0.68rem;
         font-weight: 800;
-        margin-bottom: 0.4rem;
+        font-size: 0.78rem;
+        margin-bottom: 0.65rem;
+    }
+    .translator-shell {
+        background: #ffffff;
+        border: 1px solid #f0e2a8;
+        border-radius: 28px;
+        padding: 1.1rem;
+        box-shadow: 0 14px 34px rgba(83, 63, 0, 0.10);
+        margin-top: 1rem;
+    }
+    .lang-pill {
+        display: inline-block;
+        background: #fff4b8;
+        border: 1px solid #efd772;
+        color: #5c4800;
+        border-radius: 999px;
+        padding: 0.36rem 0.78rem;
+        font-weight: 800;
+        font-size: 0.88rem;
+    }
+    .card-title {
+        font-size: 1.02rem;
+        font-weight: 900;
+        color: #4a3900;
+        margin-bottom: 0.55rem;
+    }
+    .result-card-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.7rem;
+        margin-bottom: 0.55rem;
+    }
+    .mode-caption {
+        color: #8a7a41;
+        font-size: 0.82rem;
+        white-space: nowrap;
     }
     .result-item-box {
         background: #fffdf8;
-        border: 1.5px solid rgba(234, 209, 125, 0.8);
-        border-radius: 14px;
-        padding: 0.8rem 0.95rem;
+        border: 1.5px solid rgba(234, 209, 125, 0.85);
+        border-radius: 16px;
+        padding: 0.85rem 0.95rem;
         margin-bottom: 0.65rem;
     }
     .result-main-text {
-        font-size: 1.16rem;
+        font-size: 1.14rem;
         font-weight: 900;
-        color: #5c3b18;
+        color: #3f2b00;
         line-height: 1.45;
     }
     .result-usage-text {
         font-size: 0.88rem;
-        color: #75684f;
-        margin-top: 0.18rem;
+        color: #7a6a38;
+        margin-top: 0.22rem;
     }
     .more-notice {
-        margin-top: 0.7rem;
+        margin-top: 0.65rem;
         font-size: 0.85rem;
-        color: #8a6a00;
+        color: #7a5d00;
         background: #fff5c2;
         border-radius: 999px;
-        padding: 0.35rem 0.7rem;
+        padding: 0.36rem 0.72rem;
         display: inline-block;
+    }
+    div[data-testid="stTextArea"] textarea {
+        min-height: 280px !important;
+        border-radius: 18px !important;
+        border: 1.5px solid #ead784 !important;
+        background: #fffefa !important;
+        font-size: 1.02rem !important;
+        line-height: 1.7 !important;
+    }
+    div[data-testid="stTextInput"] input {
+        border-radius: 14px !important;
+        border: 1.3px solid #ead784 !important;
+    }
+    div.stButton > button[kind="primary"] {
+        background: #ffd43b !important;
+        color: #3f2b00 !important;
+        border: 0 !important;
+        border-radius: 999px !important;
+        font-weight: 900 !important;
+        height: 3rem !important;
+        box-shadow: 0 8px 18px rgba(255, 196, 0, 0.28);
+    }
+    div.stButton > button {
+        border-radius: 999px !important;
+        font-weight: 800 !important;
+    }
+    [data-testid="stExpander"] {
+        border-radius: 18px !important;
+        border-color: #ead784 !important;
+        background: #fffefa !important;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="main-title">⚡ 피카츄어 번역기</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="subtitle">입력한 언어를 자동 감지해서 번역합니다. 등록된 표현은 등록 뜻을 우선하고, 등록되지 않은 표현은 패턴과 감정을 바탕으로 추정합니다.</div>',
+    """
+    <div class="app-header">
+        <div class="mini-badge">Pikachu Translator</div>
+        <div class="main-title">⚡ 피카츄어 번역기</div>
+        <div class="subtitle">
+            피카츄가 말하는 표현을 한국어로 해석하거나, 한국어 문장을 피카츄어로 번역합니다.
+            등록된 표현은 사전 뜻을 우선하고, 새로운 표현은 패턴과 상황을 바탕으로 추정합니다.
+        </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
 if not github_config_ready():
     st.info("GitHub 자동 저장 설정이 없으면 새 표현은 현재 세션에만 저장됩니다. 아래 백업 기능으로 JSON을 저장할 수 있습니다.")
 
-auto_mode = st.toggle("언어 자동 감지", value=True)
 
-manual_mode = "피카츄어 → 한국어"
-if not auto_mode:
-    manual_mode = st.radio(
-        "번역 방향",
-        ["피카츄어 → 한국어", "한국어 → 피카츄어"],
-        horizontal=True,
-    )
+with st.container():
+    st.markdown('<div class="translator-shell">', unsafe_allow_html=True)
 
-left, right = st.columns([1, 1], gap="large")
+    top_col1, top_col2, top_col3 = st.columns([1.2, 1, 1.2])
 
-with left:
-    st.subheader("번역할 언어 입력")
+    with top_col1:
+        st.markdown('<span class="lang-pill">입력</span>', unsafe_allow_html=True)
 
-    user_input = st.text_area(
-        "입력",
-        value=st.session_state.example_text,
-        height=260,
-        placeholder="예: 피캇츄~! 피카피 피카! 또는 종강하고싶다",
-        label_visibility="collapsed",
-    )
+    with top_col2:
+        auto_mode = st.toggle("언어 자동 감지", value=True)
 
-    translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
-
-    if translate_clicked:
-        st.session_state.show_all_results = False
-
-        if not user_input.strip():
-            st.session_state.translation_result = {
-                "status": "empty",
-                "message": "번역할 문장을 입력해주세요.",
-            }
+    with top_col3:
+        if auto_mode:
+            st.markdown('<div style="text-align:right;"><span class="lang-pill">자동 감지</span></div>', unsafe_allow_html=True)
+            manual_mode = "피카츄어 → 한국어"
         else:
-            mode, matches = translate_safely(user_input, auto_mode, manual_mode)
-            sentence = representative_sentence(matches, mode)
+            manual_mode = st.radio(
+                "번역 방향",
+                ["피카츄어 → 한국어", "한국어 → 피카츄어"],
+                horizontal=True,
+                label_visibility="collapsed",
+            )
 
-            learned = False
+    left, right = st.columns([1, 1], gap="large")
 
-            if mode == "한국어 → 피카츄어" and sentence:
-                current_dict = get_current_dict()
-                if sentence not in current_dict:
-                    learned = learn_generated_translation(user_input, sentence)
+    with left:
+        st.markdown('<div class="card-title">번역할 언어</div>', unsafe_allow_html=True)
 
-            if learned:
-                save_custom_dict_to_github(st.session_state.custom_pica_dict)
+        user_input = st.text_area(
+            "입력",
+            value=st.session_state.example_text,
+            height=280,
+            placeholder="예: 피캇츄~! 피카피 피카! 또는 종강하고싶다",
+            label_visibility="collapsed",
+        )
 
-            st.session_state.translation_result = {
-                "status": "ok",
-                "mode": mode,
-                "sentence": sentence,
-                "matches": matches,
-                "learned": learned,
-            }
+        btn_col1, btn_col2 = st.columns([2.4, 1])
 
-    if st.button("랜덤 예문 넣기", use_container_width=True):
-        st.session_state.example_text = random.choice([
-            "피캇츄~! 피카피 피카!",
-            "피이카-피카! 피이카츄우우우우우",
-            "피~카~?",
-            "종강하고싶다",
-            "과제하기싫고 집가고싶다",
-            "전투 준비 완료 10만볼트",
-        ])
-        st.session_state.translation_result = None
-        st.session_state.show_all_results = False
-        st.rerun()
+        with btn_col1:
+            translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
 
+        with btn_col2:
+            random_clicked = st.button("예문", use_container_width=True)
 
-with right:
-    st.subheader("해석 결과")
-    saved = st.session_state.translation_result
+        if translate_clicked:
+            st.session_state.show_all_results = False
 
-    if saved is None:
-        with st.container(border=True):
-            st.write("왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.")
-
-    elif saved.get("status") == "empty":
-        with st.container(border=True):
-            st.write(saved.get("message", "번역할 문장을 입력해주세요."))
-
-    else:
-        mode = saved.get("mode", "")
-        matches = saved.get("matches", [])
-        items = representative_items(matches)
-
-        if saved.get("learned"):
-            st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
-
-        display_items = items if st.session_state.show_all_results else items[:3]
-
-        # 결과 박스 전체
-        with st.container(border=True):
-            top_col1, top_col2 = st.columns([2, 1])
-
-            with top_col1:
-                st.markdown("#### 대표 해석")
-
-            with top_col2:
-                st.caption(mode)
-
-            st.caption("점수가 높은 해석부터 표시됩니다.")
-
-            if display_items:
-                for item in display_items:
-                    with st.container(border=True):
-                        st.markdown(f"### {item['text']}")
-                        st.caption(item["usage"])
+            if not user_input.strip():
+                st.session_state.translation_result = {
+                    "status": "empty",
+                    "message": "번역할 문장을 입력해주세요.",
+                }
             else:
-                with st.container(border=True):
-                    st.markdown("### 해석 결과 없음")
-                    st.caption("입력 내용을 다시 확인해주세요.")
+                mode, matches = translate_safely(user_input, auto_mode, manual_mode)
+                sentence = representative_sentence(matches, mode)
+
+                learned = False
+                if mode == "한국어 → 피카츄어" and sentence:
+                    current_dict = get_current_dict()
+                    if sentence not in current_dict:
+                        learned = learn_generated_translation(user_input, sentence)
+
+                if learned:
+                    save_custom_dict_to_github(st.session_state.custom_pica_dict)
+
+                st.session_state.translation_result = {
+                    "status": "ok",
+                    "mode": mode,
+                    "sentence": sentence,
+                    "matches": matches,
+                    "learned": learned,
+                }
+
+        if random_clicked:
+            st.session_state.example_text = random.choice([
+                "피캇츄~! 피카피 피카!",
+                "피이카-피카! 피이카츄우우우우우",
+                "피~카~?",
+                "종강하고싶다",
+                "과제하기싫고 집가고싶다",
+                "전투 준비 완료 10만볼트",
+            ])
+            st.session_state.translation_result = None
+            st.session_state.show_all_results = False
+            st.rerun()
+
+    with right:
+        saved = st.session_state.translation_result
+
+        if saved is None:
+            with st.container(border=True):
+                st.markdown(
+                    """
+                    <div class="result-card-title">
+                        <div class="card-title">해석 결과</div>
+                        <div class="mode-caption">대기 중</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.write("왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.")
+
+        elif saved.get("status") == "empty":
+            with st.container(border=True):
+                st.markdown(
+                    """
+                    <div class="result-card-title">
+                        <div class="card-title">해석 결과</div>
+                        <div class="mode-caption">입력 필요</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.write(saved.get("message", "번역할 문장을 입력해주세요."))
+
+        else:
+            mode = saved.get("mode", "")
+            matches = saved.get("matches", [])
+            items = representative_items(matches)
+
+            if saved.get("learned"):
+                st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
+
+            display_items = items if st.session_state.show_all_results else items[:3]
+
+            with st.container(border=True):
+                st.markdown(
+                    f"""
+                    <div class="result-card-title">
+                        <div class="card-title">해석 결과</div>
+                        <div class="mode-caption">{escape(mode)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                st.caption("점수가 높은 해석부터 표시됩니다.")
+
+                if display_items:
+                    for item in display_items:
+                        st.markdown(
+                            f"""
+                            <div class="result-item-box">
+                                <div class="result-main-text">{escape(str(item["text"]))}</div>
+                                <div class="result-usage-text">{escape(str(item["usage"]))}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(
+                        """
+                        <div class="result-item-box">
+                            <div class="result-main-text">해석 결과 없음</div>
+                            <div class="result-usage-text">입력 내용을 다시 확인해주세요.</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                if len(items) > 3:
+                    if not st.session_state.show_all_results:
+                        st.markdown(
+                            f'<div class="more-notice">전체 {len(items)}개 중 점수가 높은 3개만 표시 중입니다.</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            f'<div class="more-notice">전체 {len(items)}개 해석을 모두 표시 중입니다.</div>',
+                            unsafe_allow_html=True,
+                        )
 
             if len(items) > 3:
                 if not st.session_state.show_all_results:
-                    st.caption(f"전체 {len(items)}개 중 점수가 높은 3개만 표시 중입니다.")
                     if st.button("더보기", use_container_width=True):
                         st.session_state.show_all_results = True
                         st.rerun()
                 else:
-                    st.caption(f"전체 {len(items)}개 해석을 모두 표시 중입니다.")
                     if st.button("접기", use_container_width=True):
                         st.session_state.show_all_results = False
                         st.rerun()
 
-        # 새 피카츄어 표현 선택 등록
-        new_pika_can_register = False
-        register_candidates = []
-        register_pika_text = ""
+            new_pika_can_register = False
+            register_candidates = []
+            register_pika_text = ""
 
-        if mode == "피카츄어 → 한국어":
-            raw_input = normalize_text(user_input)
+            if mode == "피카츄어 → 한국어":
+                raw_input = normalize_text(user_input)
 
-            if raw_input and raw_input not in get_current_dict():
+                if raw_input and raw_input not in get_current_dict():
+                    for match in matches:
+                        if match.get("type") == "추정":
+                            for estimate in match.get("estimates", []):
+                                cleaned = clean_learned_meaning(estimate)
+
+                                if cleaned in ["새로운 피카츄어 표현"]:
+                                    continue
+
+                                if cleaned and cleaned not in register_candidates:
+                                    register_candidates.append(cleaned)
+
+                    if register_candidates:
+                        new_pika_can_register = True
+                        register_pika_text = raw_input
+
+            if new_pika_can_register:
+                with st.container(border=True):
+                    st.markdown("#### 새 표현으로 등록하기")
+                    st.caption("사전에 없는 새로운 피카츄어라면, 가장 알맞은 해석을 골라 등록할 수 있습니다.")
+
+                    selected_meaning = st.radio(
+                        "등록할 해석 선택",
+                        register_candidates,
+                        key=f"select_meaning_{register_pika_text}",
+                    )
+
+                    if st.button("선택한 해석으로 등록", use_container_width=True, key=f"register_{register_pika_text}"):
+                        ok, message = register_selected_pika_meaning(register_pika_text, selected_meaning)
+
+                        if ok:
+                            st.success(message)
+                            st.session_state.translation_result = None
+                            st.session_state.show_all_results = False
+                            st.rerun()
+                        else:
+                            st.warning(message)
+
+            with st.expander("단어별 해석 보기", expanded=False):
                 for match in matches:
-                    if match.get("type") == "추정":
-                        for estimate in match.get("estimates", []):
-                            cleaned = clean_learned_meaning(estimate)
+                    render_match_card(match)
+                    st.divider()
 
-                            if cleaned in ["새로운 피카츄어 표현"]:
-                                continue
+    st.markdown('</div>', unsafe_allow_html=True)
 
-                            if cleaned and cleaned not in register_candidates:
-                                register_candidates.append(cleaned)
-
-                if register_candidates:
-                    new_pika_can_register = True
-                    register_pika_text = raw_input
-
-        if new_pika_can_register:
-            st.markdown("#### 새 표현으로 등록하기")
-            st.caption("사전에 없는 새로운 피카츄어라면, 가장 알맞은 해석을 골라 등록할 수 있습니다.")
-
-            selected_meaning = st.radio(
-                "등록할 해석 선택",
-                register_candidates,
-                key=f"select_meaning_{register_pika_text}",
-            )
-
-            if st.button("선택한 해석으로 등록", use_container_width=True, key=f"register_{register_pika_text}"):
-                ok, message = register_selected_pika_meaning(register_pika_text, selected_meaning)
-
-                if ok:
-                    st.success(message)
-                    st.session_state.translation_result = None
-                    st.session_state.show_all_results = False
-                    st.rerun()
-                else:
-                    st.warning(message)
-
-        with st.expander("단어별 해석 보기", expanded=False):
-            for match in matches:
-                render_match_card(match)
-                st.divider()
-
-# =========================================================
-# 사전 등록 / 관리
-# =========================================================
 
 st.divider()
 
@@ -1558,10 +1540,6 @@ if st.session_state.custom_pica_dict:
 else:
     st.info("아직 새로 등록한 표현이 없습니다.")
 
-
-# =========================================================
-# 사전 검색 / 백업
-# =========================================================
 
 st.divider()
 
