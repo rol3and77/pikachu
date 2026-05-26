@@ -847,31 +847,41 @@ with st.expander("백업 / 복원", expanded=False):
         if uploaded_json is not None:
             try:
                 uploaded_data = json.load(uploaded_json)
+
                 if not isinstance(uploaded_data, dict):
                     st.error("올바른 사전 JSON 형식이 아닙니다. {\"피카츄어\": [\"뜻\"]} 형태여야 합니다.")
                 else:
                     restored_count = 0
                     custom = st.session_state.custom_pica_dict
+
                     for pika, meanings in uploaded_data.items():
                         pika = normalize_text(str(pika))
+
                         if isinstance(meanings, str):
                             meanings = [meanings]
+
                         if not isinstance(meanings, list):
                             continue
+
                         for meaning in meanings:
                             meaning = normalize_text(str(meaning))
+
                             if not pika or not meaning:
                                 continue
+
                             custom.setdefault(pika, [])
                             if meaning not in custom[pika]:
                                 custom[pika].append(meaning)
                                 restored_count += 1
+
                     st.session_state.custom_pica_dict = custom
                     st.session_state.translation_result = None
+
                     if restored_count > 0:
                         st.success(f"JSON에서 새 표현 {restored_count}개를 복원했습니다.")
                     else:
                         st.info("새로 추가할 표현이 없습니다. 이미 등록된 내용일 수 있습니다.")
+
             except Exception as error:
                 st.error("JSON 파일을 읽는 중 오류가 발생했습니다.")
-                st.caption(str(er
+                st.caption(str(error))
