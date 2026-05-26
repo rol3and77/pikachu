@@ -1329,7 +1329,17 @@ if st.session_state.custom_pica_dict:
         if delete_target:
             del st.session_state.custom_pica_dict[delete_target]
             st.session_state.translation_result = None
-            st.success(f'"{delete_target}" 표현을 삭제했습니다.')
+        
+            saved, message = save_custom_dict_to_github(
+                st.session_state.custom_pica_dict
+            )
+        
+            if saved:
+                st.success(f'"{delete_target}" 표현을 삭제했고, GitHub에도 반영했습니다.')
+            else:
+                st.warning(f'"{delete_target}" 표현은 현재 세션에서 삭제됐지만, GitHub 저장은 실패했습니다.')
+                st.caption(message)
+        
             st.rerun()
 else:
     st.info("아직 새로 등록한 표현이 없습니다.")
