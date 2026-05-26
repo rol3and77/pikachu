@@ -741,8 +741,46 @@ with right:
                 st.divider()
 
 st.divider()
-st.subheader("새 피카츄어 표현 등록")
-st.caption("새 표현은 현재 앱 세션에 임시 저장됩니다. 아래 다운로드 버튼으로 JSON 파일을 백업할 수 있습니다.")
+st.subheader("새 피카츄어 표현 등록 / 복원")
+st.caption("새 표현은 현재 앱 세션에 임시 저장됩니다. JSON 파일로 다운로드해 백업하고, 다시 업로드해서 복원할 수 있습니다.")
+
+uploaded_json = st.file_uploader(
+    "백업 JSON 업로드로 새 표현 복원",
+    type=["json"],
+    help="이전에 다운로드한 custom_pikachu_dictionary.json 파일을 업로드하세요.",
+)
+
+if uploaded_json is not None:
+    try:
+        uploaded_data = json.load(uploaded_json)
+        if not isinstance(uploaded_data, dict):
+            st.error("올바른 사전 JSON 형식이 아닙니다. {\"피카츄어\": [\"뜻\"]} 형태여야 합니다.")
+        else:
+            restored_count = 0
+            custom = st.session_state.custom_pica_dict
+            for pika, meanings in uploaded_data.items():
+                pika = normalize_text(str(pika))
+                if isinstance(meanings, str):
+                    meanings = [meanings]
+                if not isinstance(meanings, list):
+                    continue
+                for meaning in meanings:
+                    meaning = normalize_text(str(meaning))
+                    if not pika or not meaning:
+                        continue
+                    custom.setdefault(pika, [])
+                    if meaning not in custom[pika]:
+                        custom[pika].append(meaning)
+                        restored_count += 1
+            st.session_state.custom_pica_dict = custom
+            st.session_state.translation_result = None
+            if restored_count > 0:
+                st.success(f"JSON에서 새 표현 {restored_count}개를 복원했습니다.")
+            else:
+                st.info("새로 추가할 표현이 없습니다. 이미 등록된 내용일 수 있습니다.")
+    except Exception as error:
+        st.error("JSON 파일을 읽는 중 오류가 발생했습니다.")
+        st.caption(str(error))
 
 with st.form("add_new_expression", clear_on_submit=True):
     new_pika = st.text_input("새 피카츄어", placeholder="예: 피카츄우웅!")
