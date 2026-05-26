@@ -1,10 +1,12 @@
+import random
+from difflib import SequenceMatcher
+
 import streamlit as st
-from difflib import get_close_matches, SequenceMatcher
 
 st.set_page_config(
     page_title="피카츄어 번역기",
     page_icon="⚡",
-    layout="centered",
+    layout="wide",
 )
 
 PICA_DICT = {
@@ -22,10 +24,7 @@ PICA_DICT = {
     "피-카-츄~?": ["괜찮아?"],
     "피카?": ["?", "질문"],
     "피카카피카": ["이상해씨"],
-    "피카피카": [
-        "꼬부기", "파이리", "라프라스", "코코리", "갸라도스", "아공이", "가재군",
-        "이어롤", "핑복", "수댕이", "맘모꾸리", "터검니", "화살꼬빈"
-    ],
+    "피카피카": ["꼬부기", "파이리", "라프라스", "코코리", "갸라도스", "아공이", "가재군", "이어롤", "핑복", "수댕이", "맘모꾸리", "터검니", "화살꼬빈"],
     "피카-피카": ["리자몽", "메리(니드런 암컷)"],
     "피카-피카!": ["작별 인사"],
     "피카-카": ["코산호", "몽얌나"],
@@ -56,26 +55,19 @@ PICA_DICT = {
 
 
 def normalize_text(text: str) -> str:
-    return (
-        text.replace("！", "!")
-        .replace("？", "?")
-        .replace("，", ",")
-        .strip()
-    )
+    text = text.replace("！", "!").replace("？", "?").replace("，", ",")
+    return " ".join(text.split()).strip()
 
 
 def clean_korean(text: str) -> str:
-    remove_chars = "!?.~"
-    cleaned = normalize_text(text)
-    for char in remove_chars:
-        cleaned = cleaned.replace(char, "")
-    return " ".join(cleaned.split()).strip()
+    text = normalize_text(text)
+    for char in ["!", "?", ".", "~", ",", "'", '"']:
+        text = text.replace(char, "")
+    return " ".join(text.split()).strip()
 
 
 def get_aliases(meaning: str) -> list[str]:
-    plain = clean_korean(meaning)
-    aliases = [meaning, plain]
-
+    aliases = [meaning, clean_korean(meaning)]
     if "한지우" in meaning:
         aliases += ["지우", "사토시", "한지우"]
     if "로켓단" in meaning:
@@ -92,7 +84,6 @@ def get_aliases(meaning: str) -> list[str]:
         aliases += ["응", "알았어", "맞아"]
     if "넌 내꺼야" in meaning:
         aliases += ["넌 내꺼야", "내꺼야"]
-
     return list(dict.fromkeys([item for item in aliases if item]))
 
 
@@ -110,468 +101,311 @@ def build_reverse_dict() -> dict[str, list[str]]:
 REVERSE_DICT = build_reverse_dict()
 
 
-def guess_pika_meaning(word: str) -> dict:
-    estimates = []
-    reasons = []
-
-    similarity_results = guess_by_similarity(word)
-    if similarity_results:
-        best = similarity_results[0]
-        estimates.append(best["meaning"])
-        for item in similarity_results:
-            candidate = item["candidate"]
-            meaning = item["meaning"]
-            score = item["score"]
-            reasons.append(
-                f'입력한 표현이 등록 표현 "{candidate}"와 유사합니다. '
-                f'등록 뜻은 "{meaning}"이고, 유사도는 {score:.2f}입니다.'
-            )
-
-    if "우우우" in word or "츄우" in word:
-        estimates.append("전기 기술 또는 강한 공격 표현")
-        reasons.append("'우우우' 또는 '츄우'처럼 길게 늘어지는 소리가 등록된 기술명 표현에서 자주 나타납니다.")
-    if "?" in word:
-        estimates.append("질문, 확인, 되묻는 표현")
-        reasons.append("물음표가 있으므로 질문형 표현일 가능성이 있습니다.")
-    if "!" in word and len(word) > 12:
-        estimates.append("기술명 또는 강한 감정 표현")
-        reasons.append("느낌표가 있고 표현이 길어서 기술명이나 강한 감정 표현일 가능성이 있습니다.")
-    elif "!" in word:
-        estimates.append("강조, 기쁨, 놀람 계열 표현")
-        reasons.append("느낌표가 있으므로 강조나 감정 반응으로 볼 수 있습니다.")
-    if "~" in word:
-        estimates.append("감정을 길게 늘여 말하는 표현")
-        reasons.append("물결표가 있으므로 감정을 늘여 말하는 표현으로 추정했습니다.")
-    if "-" in word:
-        estimates.append("조심스럽거나 끊어서 말하는 표현")
-        reasons.append("하이픈이 있으므로 말을 끊거나 조심스럽게 말하는 표현으로 추정했습니다.")
-
-    estimates = list(dict.fromkeys(estimates))
-    reasons = list(dict.fromkeys(reasons))
-
-    if not estimates:
-        estimates.append("추정 불가")
-        reasons.append("등록된 표현과 충분히 비슷한 단어를 찾지 못했고, 기호 패턴도 뚜렷하지 않습니다.")
-
-    return {"estimates": estimates, "reasons": reasons}
+def detect_language(text: str) -> str:
+    text = normalize_text(text)
+    if not text:
+        return "unknown"
+    if text in PICA_DICT:
+        return "pika"
+    pika_keywords = ["피카", "피캇", "피이카", "피피", "피핏", "핏카", "츄", "챠아"]
+    keyword_hits = sum(1 for keyword in pika_keywords if keyword in text)
+    pika_chars = sum(text.count(ch) for ch in ["피", "카", "츄", "핏", "챠"])
+    if keyword_hits >= 1 and pika_chars >= 2:
+        return "pika"
+    return "korean"
 
 
-def guess_by_similarity(word: str) -> list[dict]:
-    scored = []
+def resolve_mode(text: str, auto_mode: bool, manual_mode: str) -> str:
+    if not auto_mode:
+        return manual_mode
+    return "피카츄어 → 한국어" if detect_language(text) == "pika" else "한국어 → 피카츄어"
 
-    for candidate in PICA_DICT.keys():
+
+def confidence_label(score: float) -> str:
+    if score >= 0.78:
+        return "높음"
+    if score >= 0.62:
+        return "보통"
+    return "낮음"
+
+
+def similarity_candidates(word: str) -> list[dict]:
+    results = []
+    for candidate, meanings in PICA_DICT.items():
         score = SequenceMatcher(None, word, candidate).ratio()
-
-        if word in candidate or candidate in word:
-            score += 0.18
-        if word.replace("!", "").replace("?", "") in candidate.replace("!", "").replace("?", ""):
-            score += 0.08
+        simple_word = word.replace("!", "").replace("?", "")
+        simple_candidate = candidate.replace("!", "").replace("?", "")
+        if simple_word and simple_word in simple_candidate:
+            score += 0.12
+        if simple_candidate and simple_candidate in simple_word:
+            score += 0.12
         if "우우" in word and "우우" in candidate:
             score += 0.12
         if "피이카" in word and "피이카" in candidate:
             score += 0.08
         if "츄우" in word and "츄우" in candidate:
             score += 0.08
-
-        scored.append((min(score, 1.0), candidate))
-
-    scored.sort(reverse=True)
-    results = []
-    for score, candidate in scored:
-        if score < 0.48 or candidate == word:
-            continue
-        results.append({
-            "candidate": candidate,
-            "meaning": PICA_DICT[candidate][0],
-            "score": score,
-        })
-        if len(results) >= 3:
-            break
-
-    return results
+        score = min(score, 1.0)
+        if candidate != word and score >= 0.48:
+            results.append({
+                "candidate": candidate,
+                "meaning": meanings[0],
+                "score": score,
+                "confidence": confidence_label(score),
+            })
+    results.sort(key=lambda item: item["score"], reverse=True)
+    return results[:3]
 
 
-def estimate_registered_pika(word: str, meanings: list[str]) -> list[str]:
-    estimates = []
+def estimate_registered(phrase: str, meanings: list[str]) -> tuple[list[str], list[str]]:
     joined = ", ".join(meanings)
-
+    estimates = []
+    reasons = [f'사전에 "{phrase}" 표현이 등록되어 있습니다.']
     if any(token in joined for token in ["10만볼트", "번개", "아이언테일", "볼트태클", "일렉트릭", "스파킹", "울트라"]):
-        estimates.append("기술명 또는 전투 중 공격 표현으로 해석할 수 있음")
+        estimates.append("기술명 또는 전투 중 공격 표현")
     if any(token in joined for token in ["안녕", "작별", "뭐라고", "괜찮아", "미안", "응", "아니", "싫어"]):
-        estimates.append("일상 대화나 감정 반응 표현으로 해석할 수 있음")
-    if len(meanings) >= 2:
-        estimates.append("하나의 표현에 여러 뜻이 있으므로 문맥에 따라 의미가 달라질 수 있음")
+        estimates.append("일상 대화 또는 감정 반응 표현")
     if any(token in joined for token in ["한지우", "최이슬", "웅이", "봄이", "나빛나", "세레나", "시트론", "로켓단"]):
-        estimates.append("특정 인물이나 대상을 부르는 호칭으로 해석할 수 있음")
+        estimates.append("특정 인물이나 대상을 부르는 호칭")
     if any(token in joined for token in ["꼬부기", "파이리", "리자몽", "버터플", "브케인", "팽도리", "코코"]):
-        estimates.append("특정 포켓몬을 가리키는 호칭으로 해석할 수 있음")
-
+        estimates.append("특정 포켓몬을 가리키는 호칭")
+    if len(meanings) >= 2:
+        estimates.append("문맥에 따라 여러 의미로 해석될 수 있음")
     if not estimates:
-        estimates.append("등록된 뜻을 기준으로 해석하는 표현입니다")
+        estimates.append("등록된 뜻을 기준으로 해석하는 표현")
+    return estimates, reasons
 
-    return estimates
+
+def estimate_unknown_pika(word: str) -> tuple[list[str], list[str]]:
+    estimates = []
+    reasons = []
+    similar = similarity_candidates(word)
+    if similar:
+        best = similar[0]
+        estimates.append(best["meaning"])
+        for item in similar:
+            reasons.append(
+                f'등록 표현 "{item["candidate"]}"와 유사합니다. 등록 뜻은 "{item["meaning"]}"이고 유사도는 {item["score"]:.2f}, 신뢰도는 {item["confidence"]}입니다.'
+            )
+    if "우우" in word or "츄우" in word:
+        estimates.append("전기 기술 또는 강한 공격 표현")
+        reasons.append("길게 늘어지는 '우우' 또는 '츄우' 패턴이 등록된 전기 기술 표현에서 자주 나타납니다.")
+    if "?" in word:
+        estimates.append("질문, 확인, 되묻는 표현")
+        reasons.append("물음표가 포함되어 있어 질문형 표현으로 추정했습니다.")
+    if "!" in word and len(word) > 12:
+        estimates.append("기술명 또는 강한 감정 표현")
+        reasons.append("표현이 길고 느낌표가 있어 기술명 또는 강한 감정 표현으로 추정했습니다.")
+    elif "!" in word:
+        estimates.append("강조, 기쁨, 놀람 계열 표현")
+        reasons.append("느낌표가 포함되어 있어 강조나 감정 반응으로 추정했습니다.")
+    if "~" in word:
+        estimates.append("감정을 길게 늘여 말하는 표현")
+        reasons.append("물결표가 포함되어 있어 감정을 늘여 말하는 표현으로 추정했습니다.")
+    if "-" in word:
+        estimates.append("조심스럽거나 끊어서 말하는 표현")
+        reasons.append("하이픈이 포함되어 있어 말을 끊거나 조심스럽게 말하는 표현으로 추정했습니다.")
+    estimates = list(dict.fromkeys(estimates))
+    reasons = list(dict.fromkeys(reasons))
+    if not estimates:
+        estimates = ["추정 불가"]
+        reasons = ["등록된 표현과 충분히 비슷한 단어를 찾지 못했고, 뚜렷한 기호 패턴도 없습니다."]
+    return estimates, reasons
+
+
+def make_match(phrase: str, meanings: list[str], match_type: str, estimates=None, reasons=None) -> dict:
+    return {
+        "phrase": phrase,
+        "meanings": meanings,
+        "type": match_type,
+        "estimates": estimates or [],
+        "reasons": reasons or [],
+    }
 
 
 def find_pika_to_korean(text: str) -> list[dict]:
     text = normalize_text(text)
     if not text:
         return []
-
     if text in PICA_DICT:
-        return [{
-            "phrase": text,
-            "meanings": PICA_DICT[text],
-            "type": "등록된 표현",
-            "estimates": estimate_registered_pika(text, PICA_DICT[text]),
-        }]
-
+        estimates, reasons = estimate_registered(text, PICA_DICT[text])
+        return [make_match(text, PICA_DICT[text], "등록된 표현", estimates, reasons)]
     matches = []
     remaining = text
-
     for key in sorted(PICA_DICT.keys(), key=len, reverse=True):
         if key in remaining:
-            matches.append({
-                "phrase": key,
-                "meanings": PICA_DICT[key],
-                "type": "등록된 표현",
-                "estimates": estimate_registered_pika(key, PICA_DICT[key]),
-            })
+            estimates, reasons = estimate_registered(key, PICA_DICT[key])
+            matches.append(make_match(key, PICA_DICT[key], "등록된 표현", estimates, reasons))
             remaining = remaining.replace(key, " ")
-
-    leftovers = [item.strip() for item in remaining.split() if item.strip()]
-    for item in leftovers:
-        guess = guess_pika_meaning(item)
-        matches.append({
-            "phrase": item,
-            "meanings": ["등록된 뜻 없음"],
-            "type": "추정",
-            "estimates": guess["estimates"],
-            "reasons": guess["reasons"],
-        })
-
+    for item in [part.strip() for part in remaining.split() if part.strip()]:
+        estimates, reasons = estimate_unknown_pika(item)
+        matches.append(make_match(item, ["등록된 뜻 없음"], "추정", estimates, reasons))
     if not matches:
-        guess = guess_pika_meaning(text)
-        matches.append({
-            "phrase": text,
-            "meanings": ["등록된 뜻 없음"],
-            "type": "추정",
-            "estimates": guess["estimates"],
-            "reasons": guess["reasons"],
-        })
-
+        estimates, reasons = estimate_unknown_pika(text)
+        matches.append(make_match(text, ["등록된 뜻 없음"], "추정", estimates, reasons))
     return matches
-
-
-def detect_language(text: str) -> str:
-    normalized = normalize_text(text)
-    if not normalized:
-        return "unknown"
-
-    if normalized in PICA_DICT:
-        return "pika"
-
-    pika_chars = sum(normalized.count(ch) for ch in ["피", "카", "츄", "챠", "핏"])
-    hangul_chars = sum(1 for ch in normalized if "가" <= ch <= "힣")
-    pika_keywords = ["피카", "피캇", "피이카", "츄", "핏카", "피핏", "챠아"]
-    keyword_hits = sum(1 for keyword in pika_keywords if keyword in normalized)
-
-    if keyword_hits >= 1 and pika_chars >= 2:
-        return "pika"
-    if hangul_chars > 0:
-        return "korean"
-
-    return "unknown"
-
-
-def resolve_mode(text: str, selected_mode: str) -> str:
-    if selected_mode != "자동 감지":
-        return selected_mode
-
-    detected = detect_language(text)
-    if detected == "pika":
-        return "피카츄어 → 한국어"
-    if detected == "korean":
-        return "한국어 → 피카츄어"
-    return "피카츄어 → 한국어"
 
 
 def find_korean_to_pika(text: str) -> list[dict]:
     text = clean_korean(text)
     if not text:
         return []
-
     if text in REVERSE_DICT:
-        return [{"phrase": text, "meanings": REVERSE_DICT[text], "type": "정확히 일치"}]
-
+        return [make_match(text, REVERSE_DICT[text], "정확히 일치", ["등록된 한국어 뜻과 정확히 일치"], [f'한국어 뜻 "{text}"가 사전에 등록되어 있습니다.'])]
     matches = []
+    used = set()
+    for word in [part.strip() for part in text.split() if part.strip()]:
+        if word in REVERSE_DICT:
+            matches.append(make_match(word, REVERSE_DICT[word], "정확히 일치", ["등록된 한국어 뜻과 정확히 일치"], [f'한국어 뜻 "{word}"가 사전에 등록되어 있습니다.']))
+            used.add(word)
     for key in sorted(REVERSE_DICT.keys(), key=len, reverse=True):
         cleaned_key = clean_korean(key)
-        if cleaned_key and cleaned_key in text:
-            matches.append({"phrase": key, "meanings": REVERSE_DICT[key], "type": "부분 번역"})
+        if cleaned_key and cleaned_key not in used and cleaned_key in text:
+            matches.append(make_match(key, REVERSE_DICT[key], "부분 번역", ["입력 문장 안에 등록된 뜻이 포함됨"], [f'입력문 안에 등록된 한국어 뜻 "{key}"가 포함되어 있습니다.']))
+            used.add(cleaned_key)
+    if matches:
+        return matches
+    return [make_match(text, ["등록된 표현 없음"], "추정", ["아직 대응되는 피카츄어가 사전에 없습니다"], ["한국어 뜻과 정확히 일치하거나 부분 일치하는 등록 항목을 찾지 못했습니다."])]
 
-    if not matches:
-        matches.append({"phrase": text, "meanings": ["아직 대응되는 피카츄어가 사전에 없습니다"], "type": "추정"})
 
-    return matches
-
-
-def make_sentence(matches: list[dict], mode: str) -> str:
-    valid = [m for m in matches if m.get("meanings")]
-    if not valid:
-        return ""
-
+def representative_sentence(matches: list[dict], mode: str) -> str:
     pieces = []
-    for match in valid:
+    for match in matches:
         meanings = match.get("meanings", [])
-        first = meanings[0] if meanings else ""
-
-        if first == "등록된 뜻 없음":
-            estimates = match.get("estimates", [])
-            first = estimates[0] if estimates else "추정 가능한 대표 해석이 없습니다"
-
-        if first:
-            pieces.append(first)
-
+        if meanings and meanings[0] not in ["등록된 뜻 없음", "등록된 표현 없음"]:
+            pieces.append(meanings[0])
+        elif match.get("estimates"):
+            pieces.append(match["estimates"][0])
     if not pieces:
         return ""
-
     if len(pieces) == 1:
         return pieces[0]
-
     if mode == "한국어 → 피카츄어":
         return " ".join(pieces)
-
     sentence = pieces[0]
     for word in pieces[1:]:
-        clean = str(word).replace("의 표현", "").replace("일 때의 표현", "").strip()
-
-        if any(token in clean for token in ["응", "알았어", "맞아"]):
+        word = str(word).strip()
+        if any(token in word for token in ["응", "알았어", "맞아"]):
             sentence += ", 알았어!"
-        elif any(token in clean for token in ["아니", "싫어"]):
+        elif any(token in word for token in ["아니", "싫어"]):
             sentence += ", 아니야."
-        elif "미안" in clean:
+        elif "미안" in word:
             sentence += ", 미안해."
-        elif "괜찮아" in clean:
+        elif "괜찮아" in word:
             sentence += ", 괜찮아?"
-        elif "전투 준비" in clean:
-            sentence += ", 전투 준비 완료!"
-        elif any(token in clean for token in ["10만볼트", "번개", "아이언테일", "볼트태클", "일렉트릭", "스파킹", "울트라"]):
-            sentence += f", {clean}!"
+        elif any(token in word for token in ["10만볼트", "번개", "아이언테일", "볼트태클", "일렉트릭", "스파킹", "울트라"]):
+            sentence += f", {word}!"
         else:
-            sentence += f" {clean}"
-
+            sentence += f" {word}"
     return sentence
+
+
+def search_dictionary(query: str) -> list[tuple[str, list[str]]]:
+    query = clean_korean(query)
+    if not query:
+        return []
+    results = []
+    for pika, meanings in PICA_DICT.items():
+        joined = " ".join([pika] + meanings)
+        if query in clean_korean(joined):
+            results.append((pika, meanings))
+    return results
+
+
+def render_match_card(match: dict):
+    st.markdown(f"**{match['phrase']}** · {match['type']}")
+    st.write("등록된 뜻:", ", ".join(match.get("meanings", [])))
+    if match.get("estimates"):
+        st.write("추정 해석:", ", ".join(match["estimates"]))
+    if match.get("reasons"):
+        with st.expander("왜 그렇게 추정했는지 보기", expanded=False):
+            for reason in match["reasons"]:
+                st.write("-", reason)
 
 
 st.markdown(
     """
     <style>
-    .stApp {
-        background: radial-gradient(circle at top left, #fff2a8 0, transparent 35%),
-                    radial-gradient(circle at bottom right, #ffe066 0, transparent 30%),
-                    #fff8d6;
-    }
-    .main-title {
-        font-size: 3rem;
-        font-weight: 900;
-        letter-spacing: -0.06em;
-        color: #5c3b18;
-        margin-bottom: 0.4rem;
-    }
-    .subtitle {
-        color: #75684f;
-        font-size: 1.05rem;
-        line-height: 1.7;
-        margin-bottom: 1.2rem;
-    }
-    .result-panel {
-        min-height: 220px;
-        background: #fffdf3;
-        border: 2px dashed #ead17d;
-        border-radius: 18px;
-        padding: 1rem;
-    }
-    .result-card {
-        background: #fff5bf;
-        border: 1px solid #efd56f;
-        border-radius: 18px;
-        padding: 1rem;
-        margin-bottom: 0.8rem;
-    }
-    .sentence-card {
-        background: #ffffff;
-        border: 2px solid #ffd43b;
-        border-radius: 18px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 8px 18px rgba(242, 183, 5, 0.14);
-    }
-    .small-label {
-        display: inline-block;
-        background: white;
-        color: #8a6a00;
-        border: 1px solid #ecd276;
-        border-radius: 999px;
-        padding: 0.2rem 0.55rem;
-        font-size: 0.75rem;
-        font-weight: 800;
-        margin-bottom: 0.4rem;
-    }
-    .phrase {
-        font-size: 1.1rem;
-        font-weight: 900;
-        color: #5c3b18;
-        margin-bottom: 0.25rem;
-    }
+    .stApp {background: radial-gradient(circle at top left, #fff2a8 0, transparent 35%), radial-gradient(circle at bottom right, #ffe066 0, transparent 30%), #fff8d6;}
+    .main-title {font-size: 3rem; font-weight: 900; letter-spacing: -0.06em; color: #5c3b18; margin-bottom: 0.25rem;}
+    .subtitle {color: #75684f; font-size: 1.05rem; line-height: 1.7; margin-bottom: 1.2rem;}
+    .result-panel {min-height: 260px; background: #fffdf3; border: 2px dashed #ead17d; border-radius: 18px; padding: 1rem;}
+    .sentence-card {background: #ffffff; border: 2px solid #ffd43b; border-radius: 18px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 8px 18px rgba(242,183,5,0.14);}
+    .small-label {display: inline-block; background: white; color: #8a6a00; border: 1px solid #ecd276; border-radius: 999px; padding: 0.2rem 0.55rem; font-size: 0.75rem; font-weight: 800; margin-bottom: 0.4rem;}
+    .phrase {font-size: 1.2rem; font-weight: 900; color: #5c3b18; line-height: 1.6;}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 st.markdown('<div class="main-title">⚡ 피카츄어 번역기</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="subtitle">왼쪽에 피카츄어 또는 한국어를 입력하면 오른쪽에 번역 결과가 표시됩니다. 두 단어 이상 해석되면 자연스럽게 이어진 문장도 함께 보여줍니다.</div>',
-    unsafe_allow_html=True,
-)
+st.markdown('<div class="subtitle">입력한 언어를 자동 감지해서 번역합니다. 등록된 표현은 등록 뜻을 우선하고, 등록되지 않은 표현은 비슷한 단어와 패턴을 바탕으로 추정합니다.</div>', unsafe_allow_html=True)
+
+if "example_text" not in st.session_state:
+    st.session_state.example_text = ""
 
 auto_mode = st.toggle("언어 자동 감지", value=True)
+manual_mode = "피카츄어 → 한국어"
+if not auto_mode:
+    manual_mode = st.radio("번역 방향", ["피카츄어 → 한국어", "한국어 → 피카츄어"], horizontal=True)
 
-if auto_mode:
-    mode = "자동 감지"
-else:
-    mode = st.radio(
-        "번역 방향",
-        ["피카츄어 → 한국어", "한국어 → 피카츄어"],
-        horizontal=True,
-    )
+left, right = st.columns([1, 1], gap="large")
 
-if "translation_result" not in st.session_state:
-    st.session_state.translation_result = None
-if "translation_mode" not in st.session_state:
-    st.session_state.translation_mode = mode
-
-input_col, output_col = st.columns([1, 1], gap="large")
-
-with input_col:
+with left:
     st.subheader("번역할 언어 입력")
     user_input = st.text_area(
-        "",
-        value="",
+        "입력",
+        value=st.session_state.example_text,
         height=260,
         placeholder="예: 피캇츄~! 피카피 피카! 또는 안녕 한지우 알았어",
         label_visibility="collapsed",
     )
+    if st.button("랜덤 예문 넣기", use_container_width=True):
+        st.session_state.example_text = random.choice([
+            "피캇츄~! 피카피 피카!",
+            "피이카-피카! 피이카츄우우우우우",
+            "피~카~?",
+            "안녕 한지우 알았어",
+            "전투 준비 완료 10만볼트",
+        ])
+        st.rerun()
 
-    if st.button("번역하기", type="primary", use_container_width=True):
-        if not user_input.strip():
-            st.session_state.translation_result = {
-                "status": "empty",
-                "message": "번역할 문장을 입력해주세요.",
-            }
-        else:
-            resolved_mode = resolve_mode(user_input, mode)
-            matches = find_pika_to_korean(user_input) if resolved_mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
-            sentence = make_sentence(matches, resolved_mode)
-            st.session_state.translation_result = {
-                "status": "ok",
-                "mode": resolved_mode,
-                "input": user_input,
-                "sentence": sentence,
-                "matches": matches,
-            }
-
-with output_col:
+with right:
     st.subheader("해석 결과")
-
-    saved = st.session_state.translation_result
-
-    if saved is None:
-        st.markdown(
-            """
-            <div class="result-panel">
-                <div class="empty">왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    elif saved.get("status") == "empty":
-        st.markdown(
-            f"""
-            <div class="result-panel">
-                <div class="empty">{saved['message']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    if not user_input.strip():
+        st.markdown('<div class="result-panel">왼쪽 입력칸에 문장을 입력하면 자동으로 해석됩니다.</div>', unsafe_allow_html=True)
     else:
-        sentence = saved.get("sentence", "")
-        matches = saved.get("matches", [])
-        detected_mode = saved.get("mode", "")
-        st.caption(f"감지된 번역 방향: {detected_mode}")
-
-        if sentence:
-            st.markdown(
-                f"""
-                <div class="result-panel">
-                    <div class="sentence-card">
-                        <div class="small-label">대표 해석</div>
-                        <div class="phrase">{sentence}</div>
-                    </div>
+        mode = resolve_mode(user_input, auto_mode, manual_mode)
+        matches = find_pika_to_korean(user_input) if mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
+        sentence = representative_sentence(matches, mode)
+        st.caption(f"감지된 번역 방향: {mode}")
+        st.markdown(
+            f'''
+            <div class="result-panel">
+                <div class="sentence-card">
+                    <div class="small-label">대표 해석</div>
+                    <div class="phrase">{sentence if sentence else "해석 결과 없음"}</div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                """
-                <div class="result-panel">
-                    <div class="empty">해석 가능한 결과가 있으면 여기에 대표 해석이 표시됩니다.</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
+            </div>
+            ''',
+            unsafe_allow_html=True,
+        )
         with st.expander("단어별 해석 보기", expanded=False):
             for match in matches:
-                meanings = match["meanings"]
-                if len(meanings) == 1:
-                    meaning_html = meanings[0]
-                else:
-                    meaning_html = "<ul>" + "".join(f"<li>{item}</li>" for item in meanings) + "</ul>"
-
-                estimates = match.get("estimates", [])
-                reasons = match.get("reasons", [])
-
-                if estimates:
-                    estimate_html = "<hr style='border:0;border-top:1px solid #efd56f;margin:0.75rem 0;'>"
-                    estimate_html += "<b>추정 해석</b>"
-                    estimate_html += "<ul>" + "".join(f"<li>{item}</li>" for item in estimates) + "</ul>"
-                else:
-                    estimate_html = ""
-
-                if reasons:
-                    reason_html = "<details style='margin-top:0.75rem;'>"
-                    reason_html += "<summary><b>왜 그렇게 추정했는지 보기</b></summary>"
-                    reason_html += "<ul>" + "".join(f"<li>{item}</li>" for item in reasons) + "</ul>"
-                    reason_html += "</details>"
-                else:
-                    reason_html = ""
-
-                st.markdown(
-                    f"""
-                    <div class="result-card">
-                        <div class="small-label">{match['type']}</div>
-                        <div class="phrase">{match['phrase']}</div>
-                        <div><b>등록된 뜻</b></div>
-                        <div>{meaning_html}</div>
-                        <div>{estimate_html}</div>
-                        <div>{reason_html}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                render_match_card(match)
+                st.divider()
 
 st.divider()
-with st.expander("등록된 피카츄어 사전 보기"):
+st.subheader("사전 검색")
+query = st.text_input("피카츄어 또는 한국어 뜻 검색", placeholder="예: 꼬부기, 10만볼트, 피카피")
+if query.strip():
+    results = search_dictionary(query)
+    if results:
+        for pika, meanings in results:
+            st.write(f"**{pika}** → {', '.join(meanings)}")
+    else:
+        st.info("검색 결과가 없습니다.")
+
+with st.expander("등록된 피카츄어 사전 전체 보기", expanded=False):
     for pika, meanings in PICA_DICT.items():
-        st.write(f"**{pika}** → {', '.join(meanings)}")
+        st.wr
