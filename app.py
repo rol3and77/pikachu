@@ -99,7 +99,6 @@ def build_reverse_dict() -> dict[str, list[str]]:
     return reverse
 
 
-BASE_get_current_reverse_dict() = build_reverse_dict()
 
 
 def get_current_dict() -> dict[str, list[str]]:
