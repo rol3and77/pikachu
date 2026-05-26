@@ -344,6 +344,11 @@ mode = st.radio(
     horizontal=True,
 )
 
+if "translation_result" not in st.session_state:
+    st.session_state.translation_result = None
+if "translation_mode" not in st.session_state:
+    st.session_state.translation_mode = mode
+
 input_col, output_col = st.columns([1, 1], gap="large")
 
 with input_col:
@@ -355,32 +360,68 @@ with input_col:
         placeholder="예: 피캇츄~! 피카피 피카!" if mode == "피카츄어 → 한국어" else "예: 안녕 한지우 알았어",
         label_visibility="collapsed",
     )
-    translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
+
+    if st.button("번역하기", type="primary", use_container_width=True):
+        if not user_input.strip():
+            st.session_state.translation_result = {
+                "status": "empty",
+                "message": "번역할 문장을 입력해주세요.",
+            }
+        else:
+            matches = find_pika_to_korean(user_input) if mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
+            sentence = make_sentence(matches, mode)
+            st.session_state.translation_result = {
+                "status": "ok",
+                "mode": mode,
+                "input": user_input,
+                "sentence": sentence,
+                "matches": matches,
+            }
 
 with output_col:
     st.subheader("해석 결과")
-    st.markdown('<div class="result-panel">', unsafe_allow_html=True)
 
-    if not translate_clicked:
+    saved = st.session_state.translation_result
+
+    if saved is None:
         st.markdown(
-            '<div class="empty">왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.</div>',
+            """
+            <div class="result-panel">
+                <div class="empty">왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.</div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
-    elif not user_input.strip():
+    elif saved.get("status") == "empty":
         st.markdown(
-            '<div class="empty">번역할 문장을 입력해주세요.</div>',
+            f"""
+            <div class="result-panel">
+                <div class="empty">{saved['message']}</div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
     else:
-        matches = find_pika_to_korean(user_input) if mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
-        sentence = make_sentence(matches, mode)
+        sentence = saved.get("sentence", "")
+        matches = saved.get("matches", [])
 
         if sentence:
             st.markdown(
                 f"""
-                <div class="sentence-card">
-                    <div class="small-label">문장으로 연결한 해석</div>
-                    <div class="phrase">{sentence}</div>
+                <div class="result-panel">
+                    <div class="sentence-card">
+                        <div class="small-label">문장으로 연결한 해석</div>
+                        <div class="phrase">{sentence}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                """
+                <div class="result-panel">
+                    <div class="empty">단어가 2개 이상 해석되면 자연스럽게 연결한 문장이 여기에 표시됩니다.</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -414,8 +455,6 @@ with output_col:
                     """,
                     unsafe_allow_html=True,
                 )
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 with st.expander("등록된 피카츄어 사전 보기"):
