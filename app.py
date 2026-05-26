@@ -1,4 +1,5 @@
 import streamlit as st
+from difflib import get_close_matches, SequenceMatcher
 
 st.set_page_config(
     page_title="피카츄어 번역기",
@@ -110,15 +111,49 @@ REVERSE_DICT = build_reverse_dict()
 
 
 def guess_pika_meaning(word: str) -> list[str]:
+    guesses = []
+
+    if "우우우" in word or "츄우" in word:
+        guesses.append("전기 기술 또는 강한 공격 표현일 가능성이 큼")
     if "?" in word:
-        return ["사전에 없지만 질문하거나 되묻는 표현일 가능성이 큼"]
+        guesses.append("질문, 확인, 되묻는 표현일 가능성이 큼")
     if "!" in word and len(word) > 12:
-        return ["사전에 없지만 기술명 또는 강한 감정 표현일 가능성이 큼"]
-    if "!" in word:
-        return ["사전에 없지만 강조, 기쁨, 놀람 계열 표현일 가능성이 큼"]
+        guesses.append("기술명 또는 강한 감정 표현일 가능성이 큼")
+    elif "!" in word:
+        guesses.append("강조, 기쁨, 놀람 계열 표현일 가능성이 큼")
     if "~" in word:
-        return ["사전에 없지만 감정이 길게 늘어진 표현일 가능성이 큼"]
-    return ["아직 사전에 없는 표현"]
+        guesses.append("감정을 길게 늘여 말하는 표현일 가능성이 큼")
+    if "-" in word:
+        guesses.append("감정이 끊기거나 조심스럽게 말하는 표현일 가능성이 있음")
+
+    guesses += guess_by_similarity(word)
+
+    if not guesses:
+        guesses.append("아직 사전에 없는 표현입니다. 비슷한 등록 표현도 뚜렷하지 않습니다.")
+
+    return list(dict.fromkeys(guesses))
+
+
+def guess_by_similarity(word: str) -> list[str]:
+    guesses = []
+    candidates = get_close_matches(word, PICA_DICT.keys(), n=3, cutoff=0.55)
+
+    for candidate in candidates:
+        if candidate == word:
+            continue
+        score = SequenceMatcher(None, word, candidate).ratio()
+        meaning = ", ".join(PICA_DICT[candidate])
+        guesses.append(f'등록 표현 "{candidate}"와 비슷함: {meaning} 계열일 가능성 있음 / 유사도 {score:.2f}')
+
+    return guesses
+
+
+def estimate_registered_pika(word: str, meanings: list[str]) -> list[str]:
+    estimates = []
+    joined = ", ".join(meanings)
+
+    if any(token in joined for token in ["10만볼트", "번개", "아이언테일", "볼트태클", "일렉트릭", "스파킹", "울트라"]):
+        estimates.append("기술명 또는 전투 중 공격 표현으로 해석할 수 있
 
 
 def find_pika_to_korean(text: str) -> list[dict]:
