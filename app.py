@@ -1,9 +1,10 @@
+import base64
 import json
 import random
 from difflib import SequenceMatcher
 
+import requests
 import streamlit as st
-
 
 st.set_page_config(
     page_title="피카츄어 번역기",
