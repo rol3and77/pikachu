@@ -270,16 +270,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+mode = st.radio(
+    "번역 방향",
+    ["피카츄어 → 한국어", "한국어 → 피카츄어"],
+    horizontal=True,
+)
+
 left_col, right_col = st.columns([1, 1], gap="large")
 
 with left_col:
-    st.subheader("입력")
-
-    mode = st.radio(
-        "번역 방향",
-        ["피카츄어 → 한국어", "한국어 → 피카츄어"],
-        horizontal=True,
-    )
+    st.subheader("번역할 언어 입력")
 
     user_input = st.text_area(
         "번역할 문장",
@@ -290,8 +290,7 @@ with left_col:
 
     translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
 
-with right_col:
-    st.subheader("해석 결과")
+
 
     st.markdown('<div class="result-panel">', unsafe_allow_html=True)
 
