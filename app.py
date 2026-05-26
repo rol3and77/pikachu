@@ -1795,6 +1795,7 @@ with st.form("add_new_expression", clear_on_submit=True):
     
         if not new_pika or not new_meaning:
             st.warning("피카츄어와 뜻을 모두 입력해주세요.")
+    
         else:
             current_dict = get_current_dict()
     
@@ -1804,22 +1805,22 @@ with st.form("add_new_expression", clear_on_submit=True):
             for pika_word, meanings in current_dict.items():
                 if pika_word == new_pika:
                     duplicate_pika = pika_word
+                    break
     
                 if new_meaning in meanings:
                     duplicate_meaning = pika_word
     
             if duplicate_pika:
-                st.warning(f'이미 "{duplicate_pika}" 피카츄어가 존재합니다.')
+                st.error(f'이미 "{duplicate_pika}" 피카츄어가 존재해서 추가할 수 없습니다.')
     
             elif duplicate_meaning:
-                st.warning(
-                    f'"{new_meaning}" 뜻은 이미 "{duplicate_meaning}" 피카츄어에 등록되어 있습니다.'
+                st.error(
+                    f'"{new_meaning}" 뜻은 이미 "{duplicate_meaning}"에 등록되어 있어서 추가할 수 없습니다.'
                 )
     
             else:
                 current_custom = st.session_state.custom_pica_dict
                 current_custom.setdefault(new_pika, [])
-    
                 current_custom[new_pika].append(new_meaning)
     
                 st.session_state.custom_pica_dict = current_custom
@@ -1839,6 +1840,7 @@ with st.form("add_new_expression", clear_on_submit=True):
                         f'"{new_pika}" → "{new_meaning}" 임시 등록 완료. GitHub 저장은 실패했습니다.'
                     )
                     st.caption(message)
+                
 if st.session_state.custom_pica_dict:
     with st.expander("내가 새로 등록한 표현 보기 / 삭제", expanded=False):
         delete_target = None
