@@ -15,6 +15,10 @@ st.set_page_config(
 )
 
 
+# =========================================================
+# 기본 피카츄어 사전
+# =========================================================
+
 PICA_DICT = {
     "피캇츄~!": ["안녕!"],
     "피카피": ["한지우(사토시)"],
@@ -63,6 +67,10 @@ PICA_DICT = {
 }
 
 
+# =========================================================
+# 기본 유틸
+# =========================================================
+
 def normalize_text(text: str) -> str:
     text = str(text)
     text = text.replace("！", "!").replace("？", "?").replace("，", ",")
@@ -79,6 +87,10 @@ def clean_korean(text: str) -> str:
 def normalize_meaning_key(text: str) -> str:
     return clean_korean(text).replace(" ", "").strip()
 
+
+# =========================================================
+# GitHub 자동 저장 / 불러오기
+# =========================================================
 
 def github_config_ready() -> bool:
     required_keys = [
@@ -120,6 +132,7 @@ def clean_custom_dict(data: dict) -> dict[str, list[str]]:
             continue
 
         cleaned[pika] = []
+
         for meaning in meanings:
             meaning = normalize_text(str(meaning))
             if meaning and meaning not in cleaned[pika]:
@@ -149,6 +162,7 @@ def load_custom_dict_from_github() -> dict[str, list[str]]:
         data = response.json()
         content = base64.b64decode(data["content"]).decode("utf-8")
         parsed = json.loads(content)
+
         return clean_custom_dict(parsed)
 
     except Exception:
@@ -176,7 +190,9 @@ def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool,
             sha = get_response.json().get("sha")
 
         json_text = json.dumps(custom_dict, ensure_ascii=False, indent=2)
-        encoded_content = base64.b64encode(json_text.encode("utf-8")).decode("utf-8")
+        encoded_content = base64.b64encode(
+            json_text.encode("utf-8")
+        ).decode("utf-8")
 
         payload = {
             "message": "Update custom Pikachu dictionary",
@@ -203,6 +219,10 @@ def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool,
         return False, str(error)
 
 
+# =========================================================
+# 세션 상태
+# =========================================================
+
 if "custom_pica_dict" not in st.session_state:
     st.session_state.custom_pica_dict = load_custom_dict_from_github()
 
@@ -215,6 +235,91 @@ if "example_text" not in st.session_state:
 if "show_all_results" not in st.session_state:
     st.session_state.show_all_results = False
 
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+
+# =========================================================
+# 비밀번호 입장
+# =========================================================
+
+def check_app_password() -> bool:
+    if "app_password" not in st.secrets:
+        return True
+
+    if st.session_state.authenticated:
+        return True
+
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: linear-gradient(180deg, #fff9df 0%, #ffffff 100%);
+        }
+        .block-container {
+            max-width: 520px;
+            padding-top: 18vh;
+        }
+        .login-card {
+            background: #ffffff;
+            border: 1px solid #f0e2a8;
+            border-radius: 28px;
+            padding: 1.6rem;
+            box-shadow: 0 14px 34px rgba(83, 63, 0, 0.10);
+            margin-bottom: 1rem;
+        }
+        .login-title {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #3f2b00;
+            letter-spacing: -0.05em;
+        }
+        .login-subtitle {
+            color: #7a6a38;
+            margin-top: 0.4rem;
+            line-height: 1.6;
+        }
+        div.stButton > button[kind="primary"] {
+            background: #ffd43b !important;
+            color: #3f2b00 !important;
+            border: 0 !important;
+            border-radius: 999px !important;
+            font-weight: 900 !important;
+            height: 2.8rem !important;
+        }
+        div[data-testid="stTextInput"] input {
+            border-radius: 14px !important;
+            border: 1.3px solid #ead784 !important;
+        }
+        </style>
+        <div class="login-card">
+            <div class="login-title">⚡ 피카츄어 번역기</div>
+            <div class="login-subtitle">앱을 사용하려면 비밀번호를 입력해주세요.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    password = st.text_input(
+        "비밀번호",
+        type="password",
+        placeholder="비밀번호 입력",
+        label_visibility="collapsed",
+    )
+
+    if st.button("입장하기", type="primary", use_container_width=True):
+        if password == st.secrets["app_password"]:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("비밀번호가 맞지 않습니다.")
+
+    return False
+
+
+# =========================================================
+# 사전 관련
+# =========================================================
 
 def get_current_dict() -> dict[str, list[str]]:
     merged = {key: value[:] for key, value in PICA_DICT.items()}
@@ -265,7 +370,9 @@ def get_current_reverse_dict() -> dict[str, list[str]]:
                 for key in keys:
                     if not key:
                         continue
+
                     reverse.setdefault(key, [])
+
                     if pika not in reverse[key]:
                         reverse[key].append(pika)
 
@@ -341,6 +448,10 @@ def meaning_usage_hint(meaning: str) -> str:
     return "문맥에 따라 사용"
 
 
+# =========================================================
+# 언어 감지
+# =========================================================
+
 def detect_language(text: str) -> str:
     text = normalize_text(text)
     if not text:
@@ -411,6 +522,10 @@ def resolve_mode(text: str, auto_mode: bool, manual_mode: str) -> str:
         return manual_mode
     return "피카츄어 → 한국어" if detect_language(text) == "pika" else "한국어 → 피카츄어"
 
+
+# =========================================================
+# 피카츄어 추정
+# =========================================================
 
 def confidence_label(score: float) -> str:
     if score >= 0.78:
@@ -587,6 +702,10 @@ def estimate_registered(phrase: str, meanings: list[str]) -> tuple[list[str], li
     return estimates, reasons
 
 
+# =========================================================
+# 한국어 → 피카츄어 생성
+# =========================================================
+
 def add_intent_score(scores: dict, intent: str, pika: str, points: int, reason: str):
     if intent not in scores:
         scores[intent] = {"score": 0, "pika": pika, "reasons": []}
@@ -606,7 +725,11 @@ def expression_length_level(text: str) -> str:
 def pick_pika_expression(intent: str, text: str) -> str:
     level = expression_length_level(text)
     compact = clean_korean(text).replace(" ", "")
-    intense = any(token in compact for token in ["진짜", "너무", "개", "완전", "제발", "살려", "미친", "ㅈㄴ", "겁나"])
+
+    intense = any(
+        token in compact
+        for token in ["진짜", "너무", "개", "완전", "제발", "살려", "미친", "ㅈㄴ", "겁나"]
+    )
 
     table = {
         "positive": {"short": ["피카!"], "medium": ["챠아~!"], "long": ["피카카~ 피카츄~!"]},
@@ -658,6 +781,7 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
         add("바람이나 소망 표현", "wish", 35, "하고 싶다, 원하다, 제발 같은 소망 표현이 있습니다.")
     if has_any(["살려", "탈출", "도망", "해방", "집가", "집에가", "퇴근", "하교"]):
         add("탈출하고 싶은 표현", "escape", 60, "살려, 탈출, 집에 가고 싶다 계열 표현이 있어 강한 탈출 욕구로 판단했습니다.")
+
     if has_any(["피곤", "힘들", "지침", "지쳐", "졸려", "졸림", "잠와", "잠오", "밤샘", "새벽", "무기력"]):
         add("피곤하거나 지친 표현", "tired", 60, "피곤함, 졸림, 밤샘, 지침 계열 단어가 있어 축 처진 감정으로 판단했습니다.")
     if has_any(["현타", "멘붕", "망했", "망함", "노답", "조졌다", "망"]):
@@ -683,8 +807,10 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
         add("긍정 또는 동의 표현", "yes", 75, "응, 맞아, 알았어 계열 표현을 짧은 긍정 피카츄어로 변환했습니다.")
     if has_any(["아니", "ㄴㄴ", "노노", "싫어"]):
         add_intent_score(scores, "부정 또는 거절 표현", "츄-", 75, "아니, 싫어 계열 표현은 등록 표현 츄-와 연결됩니다.")
+
     if "?" in original or has_any(["왜", "뭐", "무슨", "어떻게", "언제", "어디", "누구", "몇", "얼마", "될까", "가능", "맞나"]):
         add("질문 또는 되묻는 표현", "question", 60, "질문어 또는 물음표가 있어 되묻는 표현으로 판단했습니다.")
+
     if has_any(["배고", "밥먹", "먹고싶", "마라탕", "떡볶이", "치킨", "라면", "학식"]):
         add("배고픔 또는 먹고 싶은 표현", "food", 50, "배고픔이나 음식 욕구가 있어 밝은 요구 표현으로 변환했습니다.")
     if has_any(["술", "맥주", "소주", "취하고", "마시고싶"]):
@@ -727,6 +853,10 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
 
     return estimates, list(dict.fromkeys(reasons))
 
+
+# =========================================================
+# 번역 함수
+# =========================================================
 
 def find_pika_to_korean(text: str) -> list[dict]:
     text = normalize_text(text)
@@ -816,7 +946,15 @@ def find_korean_to_pika(text: str) -> list[dict]:
         return matches
 
     estimates, reasons = estimate_korean_to_pika(text)
-    return [make_match(text, ["등록된 표현 없음"], "한국어 문장 추정", estimates, reasons)]
+    return [
+        make_match(
+            text,
+            ["등록된 표현 없음"],
+            "한국어 문장 추정",
+            estimates,
+            reasons,
+        )
+    ]
 
 
 def match_quality(matches: list[dict]) -> int:
@@ -824,6 +962,7 @@ def match_quality(matches: list[dict]) -> int:
         return 0
 
     score = 0
+
     for match in matches:
         match_type = match.get("type", "")
         meanings = match.get("meanings", [])
@@ -879,6 +1018,10 @@ def translate_safely(text: str, auto_mode: bool, manual_mode: str) -> tuple[str,
 
     return "피카츄어 → 한국어", pika_matches
 
+
+# =========================================================
+# 학습 / 대표 해석
+# =========================================================
 
 def clean_learned_meaning(korean_meaning: str) -> str:
     meaning = normalize_text(korean_meaning)
@@ -1023,17 +1166,21 @@ def representative_items(matches: list[dict]) -> list[dict]:
 
 def representative_sentence(matches: list[dict], mode: str) -> str:
     items = representative_items(matches)
+
     if not items:
         return ""
+
     return "\n".join(item["text"] for item in items)
 
 
 def search_dictionary(query: str) -> list[tuple[str, list[str]]]:
     query = clean_korean(query)
+
     if not query:
         return []
 
     results = []
+
     for pika, meanings in get_current_dict().items():
         joined = " ".join([pika] + meanings)
         if query in clean_korean(joined):
@@ -1073,17 +1220,31 @@ def render_match_card(match: dict):
                 st.write("-", reason)
 
 
+# =========================================================
+# 로그인 검사
+# =========================================================
+
+if not check_app_password():
+    st.stop()
+
+
+# =========================================================
+# UI 스타일
+# =========================================================
+
 st.markdown(
     """
     <style>
     .stApp {
         background: linear-gradient(180deg, #fff9df 0%, #fffdf5 45%, #ffffff 100%);
     }
+
     .block-container {
         max-width: 1180px;
         padding-top: 2.2rem;
         padding-bottom: 4rem;
     }
+
     .app-header {
         background: #ffffff;
         border: 1px solid #f1df91;
@@ -1092,6 +1253,7 @@ st.markdown(
         margin-bottom: 1.2rem;
         box-shadow: 0 10px 26px rgba(117, 91, 0, 0.08);
     }
+
     .main-title {
         font-size: 2.35rem;
         font-weight: 900;
@@ -1100,12 +1262,14 @@ st.markdown(
         margin: 0;
         line-height: 1.15;
     }
+
     .subtitle {
         color: #7a6a38;
         font-size: 0.98rem;
         line-height: 1.65;
         margin-top: 0.55rem;
     }
+
     .mini-badge {
         display: inline-block;
         background: #ffe76a;
@@ -1116,6 +1280,7 @@ st.markdown(
         font-size: 0.78rem;
         margin-bottom: 0.65rem;
     }
+
     .translator-shell {
         background: #ffffff;
         border: 1px solid #f0e2a8;
@@ -1124,6 +1289,7 @@ st.markdown(
         box-shadow: 0 14px 34px rgba(83, 63, 0, 0.10);
         margin-top: 1rem;
     }
+
     .lang-pill {
         display: inline-block;
         background: #fff4b8;
@@ -1134,24 +1300,32 @@ st.markdown(
         font-weight: 800;
         font-size: 0.88rem;
     }
-    .card-title {
-        font-size: 1.02rem;
-        font-weight: 900;
-        color: #4a3900;
-        margin-bottom: 0.55rem;
+
+    .panel-divider {
+        height: 1px;
+        background: #f0e2a8;
+        margin: 0.85rem 0 1.1rem 0;
     }
-    .result-card-title {
+
+    .panel-title-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 0.7rem;
         margin-bottom: 0.55rem;
     }
-    .mode-caption {
-        color: #8a7a41;
-        font-size: 0.82rem;
-        white-space: nowrap;
+
+    .panel-title {
+        font-size: 1.05rem;
+        font-weight: 900;
+        color: #4a3900;
     }
+
+    .panel-subtitle {
+        font-size: 0.82rem;
+        font-weight: 800;
+        color: #b09b45;
+    }
+
     .result-item-box {
         background: #fffdf8;
         border: 1.5px solid rgba(234, 209, 125, 0.85);
@@ -1159,17 +1333,20 @@ st.markdown(
         padding: 0.85rem 0.95rem;
         margin-bottom: 0.65rem;
     }
+
     .result-main-text {
         font-size: 1.14rem;
         font-weight: 900;
         color: #3f2b00;
         line-height: 1.45;
     }
+
     .result-usage-text {
         font-size: 0.88rem;
         color: #7a6a38;
         margin-top: 0.22rem;
     }
+
     .more-notice {
         margin-top: 0.65rem;
         font-size: 0.85rem;
@@ -1179,69 +1356,109 @@ st.markdown(
         padding: 0.36rem 0.72rem;
         display: inline-block;
     }
+
+    .bottom-button-area {
+        padding-top: 1.05rem;
+        padding-bottom: 0.4rem;
+    }
+
     div[data-testid="stTextArea"] textarea {
-        min-height: 280px !important;
+        min-height: 320px !important;
         border-radius: 18px !important;
         border: 1.5px solid #ead784 !important;
         background: #fffefa !important;
         font-size: 1.02rem !important;
         line-height: 1.7 !important;
     }
+
     div[data-testid="stTextInput"] input {
         border-radius: 14px !important;
         border: 1.3px solid #ead784 !important;
     }
+
     div.stButton > button[kind="primary"] {
         background: #ffd43b !important;
         color: #3f2b00 !important;
         border: 0 !important;
         border-radius: 999px !important;
         font-weight: 900 !important;
-        height: 3rem !important;
+        height: 2.75rem !important;
         box-shadow: 0 8px 18px rgba(255, 196, 0, 0.24);
     }
+
     div.stButton > button {
         border-radius: 999px !important;
         font-weight: 800 !important;
     }
+
     [data-testid="stExpander"] {
         border-radius: 18px !important;
         border-color: #ead784 !important;
         background: #fffefa !important;
     }
-    .panel-divider {
-    height: 1px;
-    background: #f0e2a8;
-    margin: 0.85rem 0 1.1rem 0;
-    }
-    
-    .panel-title-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 0.55rem;
-    }
-    
-    .panel-title {
-        font-size: 1.05rem;
-        font-weight: 900;
-        color: #4a3900;
-    }
-    
-    .panel-subtitle {
-        font-size: 0.82rem;
-        font-weight: 800;
-        color: #b09b45;
-    }
-    
-    .bottom-button-area {
-        padding-top: 1.05rem;
-        padding-bottom: 0.4rem;
+
+    @media (max-width: 768px) {
+        .block-container {
+            max-width: 100%;
+            padding-left: 0.9rem;
+            padding-right: 0.9rem;
+            padding-top: 1.2rem;
+        }
+
+        .app-header {
+            border-radius: 20px;
+            padding: 1.15rem 1.05rem;
+            margin-bottom: 0.9rem;
+        }
+
+        .main-title {
+            font-size: 1.85rem;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+        }
+
+        .translator-shell {
+            border-radius: 22px;
+            padding: 0.85rem;
+        }
+
+        .lang-pill {
+            font-size: 0.78rem;
+            padding: 0.28rem 0.55rem;
+        }
+
+        div[data-testid="stTextArea"] textarea {
+            min-height: 220px !important;
+            font-size: 0.98rem !important;
+        }
+
+        .result-item-box {
+            padding: 0.75rem 0.82rem;
+        }
+
+        .result-main-text {
+            font-size: 1.04rem;
+        }
+
+        .result-usage-text {
+            font-size: 0.82rem;
+        }
+
+        div.stButton > button[kind="primary"] {
+            height: 2.65rem !important;
+        }
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+# =========================================================
+# 헤더
+# =========================================================
 
 st.markdown(
     """
@@ -1260,6 +1477,10 @@ st.markdown(
 if not github_config_ready():
     st.info("GitHub 자동 저장 설정이 없으면 새 표현은 현재 세션에만 저장됩니다. 아래 백업 기능으로 JSON을 저장할 수 있습니다.")
 
+
+# =========================================================
+# 번역기 UI
+# =========================================================
 
 with st.container():
     st.markdown('<div class="translator-shell">', unsafe_allow_html=True)
@@ -1339,6 +1560,9 @@ with st.container():
                 mode = saved.get("mode", "")
                 matches = saved.get("matches", [])
                 items = representative_items(matches)
+
+                if saved.get("learned"):
+                    st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
 
                 st.caption(mode)
                 st.caption("점수가 높은 해석부터 표시됩니다.")
@@ -1508,6 +1732,11 @@ with st.container():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+
+# =========================================================
+# 사전 등록 / 관리
+# =========================================================
+
 st.divider()
 
 st.subheader("새 피카츄어 표현 등록")
@@ -1581,6 +1810,10 @@ if st.session_state.custom_pica_dict:
 else:
     st.info("아직 새로 등록한 표현이 없습니다.")
 
+
+# =========================================================
+# 사전 검색 / 백업
+# =========================================================
 
 st.divider()
 
