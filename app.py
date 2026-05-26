@@ -1183,15 +1183,25 @@ def find_korean_to_pika(text: str) -> list[dict]:
 
     if matches:
         return matches
-
-    estimates, reasons = estimate_korean_to_pika(text)
+    
+    new_word = generate_new_pika_word(text)
+    
+    custom = st.session_state.custom_pica_dict
+    custom.setdefault(new_word, [])
+    
+    if text not in custom[new_word]:
+        custom[new_word].append(text)
+    
+    st.session_state.custom_pica_dict = custom
+    save_custom_dict_to_github(custom)
+    
     return [
         make_match(
             text,
-            ["등록된 표현 없음"],
-            "한국어 문장 추정",
-            estimates,
-            reasons,
+            [new_word],
+            "새 단어 생성",
+            ["문법 규칙 기반 새 피카 단어 자동 생성"],
+            ["사전에 없는 단어라 새 피카 단어를 만들고 저장했습니다."],
         )
     ]
 
@@ -1296,7 +1306,64 @@ def clean_learned_meaning(korean_meaning: str) -> str:
 
     return meaning if meaning else "새로운 피카츄어 표현"
 
+def generate_new_pika_word(seed: str) -> str:
+    import hashlib
 
+    patterns = [
+        "피카츄",
+        "피카-츄",
+        "피카~츄",
+        "피카.츄",
+        "피이카츄",
+        "피이카-츄",
+        "피이카~츄",
+        "피이카.츄",
+        "피카츄우",
+        "피카-츄우",
+        "피카~츄우",
+        "피카.츄우",
+        "피이카츄우",
+        "피이카-츄우",
+        "피이카~츄우",
+        "피이카.츄우",
+        "피카츄피",
+        "피카-츄피",
+        "피카~츄피",
+        "피카.츄피",
+        "피이카츄피",
+        "피이카-츄피",
+        "피이카~츄피",
+        "피이카.츄피",
+        "피카츄피카",
+        "피카-츄피카",
+        "피카~츄피카",
+        "피카.츄피카",
+        "피이카츄피카",
+        "피이카-츄피카",
+        "피이카~츄피카",
+        "피이카.츄피카",
+    ]
+
+    current = get_current_dict()
+
+    h = int(hashlib.md5(seed.encode()).hexdigest(), 16)
+    start = h % len(patterns)
+
+    for i in range(len(patterns)):
+        candidate = patterns[(start + i) % len(patterns)]
+
+        if candidate not in current:
+            return candidate
+
+    extra = 1
+    while True:
+        candidate = "피카" + ("츄피" * extra)
+
+        if candidate not in current:
+            return candidate
+
+        extra += 1
+        
 def learn_generated_translation(korean_text: str, pika_text: str) -> bool:
     pika_text = normalize_text(pika_text)
     korean_text = normalize_text(korean_text)
