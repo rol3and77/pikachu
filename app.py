@@ -176,103 +176,118 @@ def estimate_registered(phrase: str, meanings: list[str]) -> tuple[list[str], li
     return estimates, reasons
 
 
-def analyze_pika_pattern(word: str) -> tuple[list[str], list[str]]:
-    estimates = []
-    reasons = []
+def add_score(scores: dict, label: str, points: int, reason: str):
+    if label not in scores:
+        scores[label] = {"score": 0, "reasons": []}
+    scores[label]["score"] += points
+    scores[label]["reasons"].append(reason)
+
+
+def pattern_score_estimation(word: str) -> tuple[list[str], list[str]]:
+    scores = {}
     clean = word.replace(" ", "")
 
-    pika_count = clean.count("피카")
-    pi_count = clean.count("피")
-    ka_count = clean.count("카")
-    chu_count = clean.count("츄")
-    long_vowel_count = clean.count("우") + clean.count("아") + clean.count("이")
-    exclamation_count = clean.count("!")
-    question_count = clean.count("?")
-    dash_count = clean.count("-")
-    wave_count = clean.count("~")
+    pi = clean.count("피")
+    ka = clean.count("카")
+    chu = clean.count("츄")
+    pika = clean.count("피카")
+    long_u = clean.count("우")
+    long_a = clean.count("아")
+    ex = clean.count("!")
+    q = clean.count("?")
+    dash = clean.count("-")
+    wave = clean.count("~")
+    length = len(clean)
 
-    if question_count > 0:
-        if wave_count > 0 or dash_count > 0:
-            estimates.append("상대의 상태를 확인하거나 부드럽게 되묻는 표현")
-            reasons.append("물음표와 물결표/하이픈이 함께 있어 단순 질문보다 조심스럽거나 부드러운 확인 표현으로 보았습니다.")
-        else:
-            estimates.append("질문 또는 의문 표현")
-            reasons.append("물음표가 포함되어 있어 질문형 표현으로 분류했습니다.")
+    # 의문/확인 계열
+    if q >= 1:
+        add_score(scores, "질문 또는 되묻는 표현", 45, "물음표가 포함되어 있어 질문형 표현 가능성이 큽니다.")
+        if wave >= 1:
+            add_score(scores, "부드럽게 확인하는 표현", 30, "물음표와 물결표가 함께 있어 단순 질문보다 부드럽게 되묻는 느낌이 강합니다.")
+        if dash >= 1:
+            add_score(scores, "조심스럽게 확인하는 표현", 25, "물음표와 하이픈이 함께 있어 조심스럽게 확인하는 말투로 볼 수 있습니다.")
 
-    if exclamation_count >= 2:
-        estimates.append("흥분, 전투, 강한 외침")
-        reasons.append("느낌표가 여러 번 반복되어 감정이 강하거나 전투 상황에서 외치는 표현으로 보았습니다.")
-    elif exclamation_count == 1:
-        estimates.append("강조 또는 감정 반응")
-        reasons.append("느낌표가 포함되어 있어 평서문보다 강조된 감정 반응으로 보았습니다.")
+    # 전투/기술 계열
+    if long_u >= 3 or "츄우" in clean:
+        add_score(scores, "전기 기술 또는 공격 표현", 50, "'우'가 길게 반복되거나 '츄우'가 들어가 에너지를 방출하는 기술 표현처럼 보입니다.")
+    if ex >= 2:
+        add_score(scores, "강한 외침 또는 전투 표현", 35, "느낌표가 여러 개라 감정 강도가 높고 전투 중 외침처럼 보입니다.")
+    if length >= 12 and ex >= 1:
+        add_score(scores, "기술명 계열 표현", 35, "표현이 길고 느낌표가 있어 일반 대화보다 기술명에 가깝습니다.")
+    if pika >= 4:
+        add_score(scores, "고조된 기술명 계열 표현", 40, "'피카'가 여러 번 반복되어 리듬이 있는 기술명 패턴에 가깝습니다.")
 
-    if "우우" in clean or "츄우" in clean or long_vowel_count >= 5:
-        estimates.append("전기 기술 또는 에너지를 모으는 공격 표현")
-        reasons.append("'우우', '츄우'처럼 소리를 길게 끄는 패턴은 기술명이나 에너지 방출 표현에서 자주 쓰일 수 있습니다.")
+    # 일상 감정/반응 계열
+    if ex == 1 and length <= 8:
+        add_score(scores, "짧은 긍정 또는 감정 반응", 30, "짧은 표현에 느낌표가 하나 있어 간단한 반응이나 감정 표현으로 보입니다.")
+    if wave >= 1 and q == 0:
+        add_score(scores, "부드럽거나 기분 좋은 감정 표현", 30, "물결표가 있어 말끝을 늘이는 감정 표현으로 보입니다.")
+    if dash >= 1 and q == 0:
+        add_score(scores, "망설임 또는 조심스러운 감정 표현", 28, "하이픈이 있어 말이 끊기며 조심스럽거나 미안한 느낌을 줄 수 있습니다.")
+    if clean == "츄" or clean.startswith("츄-"):
+        add_score(scores, "부정 또는 거절 표현", 45, "등록 사전에서 '츄-'가 부정/거절 의미로 쓰이므로 비슷한 부정 반응으로 볼 수 있습니다.")
+    if clean.startswith("피카") and ex == 1 and q == 0 and length <= 6:
+        add_score(scores, "긍정 또는 짧은 대답", 35, "짧은 '피카' 계열 감탄은 응답이나 긍정 표현으로 쓰일 가능성이 있습니다.")
 
-    if dash_count >= 2:
-        estimates.append("망설임, 조심스러운 감정, 특정 대상을 부르는 표현")
-        reasons.append("하이픈이 여러 번 들어가 말이 끊기는 느낌이 강하므로 망설임이나 조심스러운 호칭으로 추정했습니다.")
-    elif dash_count == 1:
-        estimates.append("짧게 끊어 말하는 감정 표현")
-        reasons.append("하이픈이 있어 일반 감탄보다 끊어서 말하는 표현으로 보았습니다.")
+    # 호칭/대상 지칭 계열
+    if 4 <= length <= 8 and ex == 0 and q == 0 and long_u <= 1:
+        add_score(scores, "인물 또는 포켓몬을 부르는 호칭", 35, "길이가 짧고 강한 기호가 없어 특정 대상을 부르는 호칭일 가능성이 있습니다.")
+    if pi + ka + chu >= 4 and ex == 0 and q == 0:
+        add_score(scores, "대상 지칭 또는 이름 표현", 25, "피/카/츄 음절 조합이 중심이고 문장 기호가 없어 이름처럼 쓰였을 가능성이 있습니다.")
 
-    if wave_count > 0:
-        estimates.append("부드럽거나 감정을 늘여 말하는 표현")
-        reasons.append("물결표가 있어 말끝을 늘이는 감정 표현으로 추정했습니다.")
+    if not scores:
+        return ["새로운 피카츄어 표현"], ["뚜렷한 기호 패턴은 없지만 피카츄어 음절 조합으로 이루어져 있어 새로운 표현으로 추정했습니다."]
 
-    if pika_count >= 4:
-        estimates.append("고조된 전투 기술명 또는 긴장감 있는 외침")
-        reasons.append("'피카'가 여러 번 반복되어 단순 호칭보다 리듬감 있는 기술명 계열 표현으로 보았습니다.")
-    elif pika_count >= 2:
-        estimates.append("기쁨, 호명, 반복 강조 표현")
-        reasons.append("'피카' 반복이 있어 단어 하나보다 강조된 감정이나 호명 표현으로 보았습니다.")
+    ranked = sorted(scores.items(), key=lambda item: item[1]["score"], reverse=True)
+    top_score = ranked[0][1]["score"]
+    estimates = []
+    reasons = []
 
-    if chu_count >= 2 and exclamation_count == 0:
-        estimates.append("친근한 호칭 또는 부드러운 반응")
-        reasons.append("'츄'가 반복되지만 강한 느낌표가 없어 공격보다는 부드러운 반응 쪽으로 추정했습니다.")
-
-    if pi_count + ka_count + chu_count <= 3 and exclamation_count == 0 and question_count == 0:
-        estimates.append("짧은 호칭 또는 짧은 반응")
-        reasons.append("표현 길이가 짧고 강한 기호가 없어 짧은 호칭이나 간단한 반응일 가능성이 있습니다.")
+    for label, data in ranked[:3]:
+        if data["score"] >= max(25, top_score - 20):
+            estimates.append(label)
+            reasons.append(f'{label}: 점수 {data["score"]}점')
+            for reason in data["reasons"][:2]:
+                reasons.append("- " + reason)
 
     return estimates, reasons
 
 
 def estimate_unknown_pika(word: str) -> tuple[list[str], list[str]]:
+    pattern_estimates, pattern_reasons = pattern_score_estimation(word)
+    similar = similarity_candidates(word)
+
     estimates = []
     reasons = []
 
-    pattern_estimates, pattern_reasons = analyze_pika_pattern(word)
-    estimates += pattern_estimates
-    reasons += pattern_reasons
-
-    similar = similarity_candidates(word)
-    if similar:
+    # 사전과 매우 비슷한 경우에만 사전 뜻을 1순위로 올림.
+    if similar and similar[0]["score"] >= 0.84:
         best = similar[0]
-        if best["score"] >= 0.78:
-            estimates.insert(0, best["meaning"])
-            reasons.insert(
-                0,
-                f'등록 표현 "{best["candidate"]}"와 매우 유사하여 대표 추정에 반영했습니다. 등록 뜻은 "{best["meaning"]}"이고 유사도는 {best["score"]:.2f}입니다.'
-            )
-        else:
-            estimates.append(f'{best["meaning"]} 계열일 가능성')
+        estimates.append(best["meaning"])
+        reasons.append(
+            f'등록 표현 "{best["candidate"]}"와 거의 같은 형태입니다. 등록 뜻은 "{best["meaning"]}"이고 유사도는 {best["score"]:.2f}입니다.'
+        )
+        estimates += pattern_estimates[:2]
+        reasons += pattern_reasons
+    else:
+        # 애매하면 사전 뜻보다 패턴 해석을 먼저 보여줌.
+        estimates += pattern_estimates
+        reasons += pattern_reasons
+        if similar:
+            best = similar[0]
+            estimates.append(f'{best["meaning"]} 계열 가능성')
             reasons.append(
-                f'가장 가까운 등록 표현은 "{best["candidate"]}"입니다. 등록 뜻은 "{best["meaning"]}"이고 유사도는 {best["score"]:.2f}, 신뢰도는 {best["confidence"]}입니다.'
+                f'참고로 가장 가까운 등록 표현은 "{best["candidate"]}"입니다. 등록 뜻은 "{best["meaning"]}"이고 유사도는 {best["score"]:.2f}입니다. 다만 완전 일치가 아니므로 보조 근거로만 사용했습니다.'
             )
 
-        for item in similar[1:]:
-            reasons.append(
-                f'비교 후보: "{item["candidate"]}" → "{item["meaning"]}" / 유사도 {item["score"]:.2f}, 신뢰도 {item["confidence"]}'
-            )
+    for item in similar[1:3]:
+        reasons.append(
+            f'추가 비교 후보: "{item["candidate"]}" → "{item["meaning"]}" / 유사도 {item["score"]:.2f}'
+        )
 
     estimates = list(dict.fromkeys(estimates))
     reasons = list(dict.fromkeys(reasons))
-    if not estimates:
-        estimates = ["새로운 피카츄어 표현"]
-        reasons = ["등록된 표현과 충분히 비슷하지는 않지만, 피/카/츄 계열 음절로 구성되어 있어 새로운 피카츄어 표현으로 추정했습니다."]
-    return estimates, reasons
+    return estimate
 
 
 def make_match(phrase: str, meanings: list[str], match_type: str, estimates=None, reasons=None) -> dict:
