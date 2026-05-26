@@ -110,32 +110,53 @@ def build_reverse_dict() -> dict[str, list[str]]:
 REVERSE_DICT = build_reverse_dict()
 
 
-def guess_pika_meaning(word: str) -> list[str]:
-    guesses = []
+def guess_pika_meaning(word: str) -> dict:
+    estimates = []
+    reasons = []
+
+    similarity_results = guess_by_similarity(word)
+    if similarity_results:
+        best = similarity_results[0]
+        estimates.append(best["meaning"])
+        for item in similarity_results:
+            candidate = item["candidate"]
+            meaning = item["meaning"]
+            score = item["score"]
+            reasons.append(
+                f'입력한 표현이 등록 표현 "{candidate}"와 유사합니다. '
+                f'등록 뜻은 "{meaning}"이고, 유사도는 {score:.2f}입니다.'
+            )
 
     if "우우우" in word or "츄우" in word:
-        guesses.append("전기 기술 또는 강한 공격 표현일 가능성이 큼")
+        estimates.append("전기 기술 또는 강한 공격 표현")
+        reasons.append("'우우우' 또는 '츄우'처럼 길게 늘어지는 소리가 등록된 기술명 표현에서 자주 나타납니다.")
     if "?" in word:
-        guesses.append("질문, 확인, 되묻는 표현일 가능성이 큼")
+        estimates.append("질문, 확인, 되묻는 표현")
+        reasons.append("물음표가 있으므로 질문형 표현일 가능성이 있습니다.")
     if "!" in word and len(word) > 12:
-        guesses.append("기술명 또는 강한 감정 표현일 가능성이 큼")
+        estimates.append("기술명 또는 강한 감정 표현")
+        reasons.append("느낌표가 있고 표현이 길어서 기술명이나 강한 감정 표현일 가능성이 있습니다.")
     elif "!" in word:
-        guesses.append("강조, 기쁨, 놀람 계열 표현일 가능성이 큼")
+        estimates.append("강조, 기쁨, 놀람 계열 표현")
+        reasons.append("느낌표가 있으므로 강조나 감정 반응으로 볼 수 있습니다.")
     if "~" in word:
-        guesses.append("감정을 길게 늘여 말하는 표현일 가능성이 큼")
+        estimates.append("감정을 길게 늘여 말하는 표현")
+        reasons.append("물결표가 있으므로 감정을 늘여 말하는 표현으로 추정했습니다.")
     if "-" in word:
-        guesses.append("감정이 끊기거나 조심스럽게 말하는 표현일 가능성이 있음")
+        estimates.append("조심스럽거나 끊어서 말하는 표현")
+        reasons.append("하이픈이 있으므로 말을 끊거나 조심스럽게 말하는 표현으로 추정했습니다.")
 
-    guesses += guess_by_similarity(word)
+    estimates = list(dict.fromkeys(estimates))
+    reasons = list(dict.fromkeys(reasons))
 
-    if not guesses:
-        guesses.append("아직 사전에 없는 표현입니다. 비슷한 등록 표현도 뚜렷하지 않습니다.")
+    if not estimates:
+        estimates.append("추정 불가")
+        reasons.append("등록된 표현과 충분히 비슷한 단어를 찾지 못했고, 기호 패턴도 뚜렷하지 않습니다.")
 
-    return list(dict.fromkeys(guesses))
+    return {"estimates": estimates, "reasons": reasons}
 
 
-def guess_by_similarity(word: str) -> list[str]:
-    guesses = []
+def guess_by_similarity(word: str) -> list[dict]:
     scored = []
 
     for candidate in PICA_DICT.keys():
@@ -155,18 +176,19 @@ def guess_by_similarity(word: str) -> list[str]:
         scored.append((min(score, 1.0), candidate))
 
     scored.sort(reverse=True)
-    candidates = [(score, candidate) for score, candidate in scored if score >= 0.48 and candidate != word][:3]
+    results = []
+    for score, candidate in scored:
+        if score < 0.48 or candidate == word:
+            continue
+        results.append({
+            "candidate": candidate,
+            "meaning": PICA_DICT[candidate][0],
+            "score": score,
+        })
+        if len(results) >= 3:
+            break
 
-    for score, candidate in candidates:
-        meaning = ", ".join(PICA_DICT[candidate])
-        if score >= 0.78:
-            guesses.append(f'등록 표현 "{candidate}"와 매우 비슷함 → {meaning} 쪽 의미일 가능성이 큼')
-        elif score >= 0.62:
-            guesses.append(f'등록 표현 "{candidate}"와 비슷함 → {meaning} 계열일 가능성 있음')
-        else:
-            guesses.append(f'등록 표현 "{candidate}"와 약간 비슷함 → {meaning}와 관련 있을 수 있음')
-
-    return guesses
+    return results
 
 
 def estimate_registered_pika(word: str, meanings: list[str]) -> list[str]:
