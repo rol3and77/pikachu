@@ -2,6 +2,7 @@ import base64
 import json
 import random
 from difflib import SequenceMatcher
+from html import escape
 
 import requests
 import streamlit as st
@@ -13,6 +14,10 @@ st.set_page_config(
     layout="wide",
 )
 
+
+# =========================================================
+# 기본 피카츄어 사전
+# =========================================================
 
 PICA_DICT = {
     "피캇츄~!": ["안녕!"],
@@ -62,6 +67,10 @@ PICA_DICT = {
 }
 
 
+# =========================================================
+# 기본 유틸
+# =========================================================
+
 def normalize_text(text: str) -> str:
     text = str(text)
     text = text.replace("！", "!").replace("？", "?").replace("，", ",")
@@ -78,6 +87,10 @@ def clean_korean(text: str) -> str:
 def normalize_meaning_key(text: str) -> str:
     return clean_korean(text).replace(" ", "").strip()
 
+
+# =========================================================
+# GitHub 자동 저장 / 불러오기
+# =========================================================
 
 def github_config_ready() -> bool:
     required_keys = [
@@ -211,6 +224,10 @@ def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool,
         return False, str(error)
 
 
+# =========================================================
+# 세션 상태
+# =========================================================
+
 if "custom_pica_dict" not in st.session_state:
     st.session_state.custom_pica_dict = load_custom_dict_from_github()
 
@@ -223,6 +240,10 @@ if "example_text" not in st.session_state:
 if "show_all_results" not in st.session_state:
     st.session_state.show_all_results = False
 
+
+# =========================================================
+# 사전 관련
+# =========================================================
 
 def get_current_dict() -> dict[str, list[str]]:
     merged = {key: value[:] for key, value in PICA_DICT.items()}
@@ -355,6 +376,10 @@ def meaning_usage_hint(meaning: str) -> str:
     return "문맥에 따라 사용"
 
 
+# =========================================================
+# 언어 감지
+# =========================================================
+
 def detect_language(text: str) -> str:
     text = normalize_text(text)
     if not text:
@@ -429,6 +454,10 @@ def resolve_mode(text: str, auto_mode: bool, manual_mode: str) -> str:
         return manual_mode
     return "피카츄어 → 한국어" if detect_language(text) == "pika" else "한국어 → 피카츄어"
 
+
+# =========================================================
+# 피카츄어 추정
+# =========================================================
 
 def confidence_label(score: float) -> str:
     if score >= 0.78:
@@ -608,6 +637,10 @@ def estimate_registered(phrase: str, meanings: list[str]) -> tuple[list[str], li
 
     return estimates, reasons
 
+
+# =========================================================
+# 한국어 → 피카츄어 생성
+# =========================================================
 
 def add_intent_score(scores: dict, intent: str, pika: str, points: int, reason: str):
     if intent not in scores:
@@ -801,6 +834,10 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
     return estimates, list(dict.fromkeys(reasons))
 
 
+# =========================================================
+# 번역 함수
+# =========================================================
+
 def find_pika_to_korean(text: str) -> list[dict]:
     text = normalize_text(text)
     current_dict = get_current_dict()
@@ -961,6 +998,10 @@ def translate_safely(text: str, auto_mode: bool, manual_mode: str) -> tuple[str,
 
     return "피카츄어 → 한국어", pika_matches
 
+
+# =========================================================
+# 학습 / 대표 해석
+# =========================================================
 
 def clean_learned_meaning(korean_meaning: str) -> str:
     meaning = normalize_text(korean_meaning)
@@ -1172,6 +1213,10 @@ def render_match_card(match: dict):
                 st.write("-", reason)
 
 
+# =========================================================
+# UI
+# =========================================================
+
 st.markdown(
     """
     <style>
@@ -1195,7 +1240,7 @@ st.markdown(
         margin-bottom: 1.2rem;
     }
     .result-panel {
-        min-height: 120px;
+        min-height: 220px;
         background: #fffdf3;
         border: 2px dashed #ead17d;
         border-radius: 18px;
@@ -1219,6 +1264,33 @@ st.markdown(
         font-size: 0.75rem;
         font-weight: 800;
         margin-bottom: 0.4rem;
+    }
+    .result-item-box {
+        background: #fffdf8;
+        border: 1.5px solid rgba(234, 209, 125, 0.8);
+        border-radius: 14px;
+        padding: 0.8rem 0.95rem;
+        margin-bottom: 0.65rem;
+    }
+    .result-main-text {
+        font-size: 1.16rem;
+        font-weight: 900;
+        color: #5c3b18;
+        line-height: 1.45;
+    }
+    .result-usage-text {
+        font-size: 0.88rem;
+        color: #75684f;
+        margin-top: 0.18rem;
+    }
+    .more-notice {
+        margin-top: 0.7rem;
+        font-size: 0.85rem;
+        color: #8a6a00;
+        background: #fff5c2;
+        border-radius: 999px;
+        padding: 0.35rem 0.7rem;
+        display: inline-block;
     }
     </style>
     """,
@@ -1315,7 +1387,7 @@ with right:
 
     elif saved.get("status") == "empty":
         st.markdown(
-            f'<div class="result-panel">{saved.get("message", "번역할 문장을 입력해주세요.")}</div>',
+            f'<div class="result-panel">{escape(saved.get("message", "번역할 문장을 입력해주세요."))}</div>',
             unsafe_allow_html=True,
         )
 
@@ -1327,47 +1399,47 @@ with right:
         if saved.get("learned"):
             st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
 
-display_items = items if st.session_state.show_all_results else items[:3]
+        display_items = items if st.session_state.show_all_results else items[:3]
 
-if display_items:
-    item_html = ""
-    for item in display_items:
-        item_html += f"""
-        <div class="result-item-box">
-            <div class="result-main-text">{item["text"]}</div>
-            <div class="result-usage-text">{item["usage"]}</div>
-        </div>
-        """
-else:
-    item_html = """
-    <div class="result-item-box">
-        <div class="result-main-text">해석 결과 없음</div>
-        <div class="result-usage-text">입력 내용을 다시 확인해주세요.</div>
-    </div>
-    """
+        if display_items:
+            item_html = ""
+            for item in display_items:
+                item_html += f"""
+                <div class="result-item-box">
+                    <div class="result-main-text">{escape(str(item["text"]))}</div>
+                    <div class="result-usage-text">{escape(str(item["usage"]))}</div>
+                </div>
+                """
+        else:
+            item_html = """
+            <div class="result-item-box">
+                <div class="result-main-text">해석 결과 없음</div>
+                <div class="result-usage-text">입력 내용을 다시 확인해주세요.</div>
+            </div>
+            """
 
-if len(items) > 3 and not st.session_state.show_all_results:
-    more_notice = f"""
-    <div class="more-notice">
-        전체 {len(items)}개 중 점수가 높은 3개만 표시 중입니다.
-    </div>
-    """
-elif len(items) > 3 and st.session_state.show_all_results:
-    more_notice = f"""
-    <div class="more-notice">
-        전체 {len(items)}개 해석을 모두 표시 중입니다.
-    </div>
-    """
-else:
-    more_notice = ""
+        if len(items) > 3 and not st.session_state.show_all_results:
+            more_notice = f"""
+            <div class="more-notice">
+                전체 {len(items)}개 중 점수가 높은 3개만 표시 중입니다.
+            </div>
+            """
+        elif len(items) > 3 and st.session_state.show_all_results:
+            more_notice = f"""
+            <div class="more-notice">
+                전체 {len(items)}개 해석을 모두 표시 중입니다.
+            </div>
+            """
+        else:
+            more_notice = ""
 
         st.markdown(
             f"""
             <div class="result-panel" style="position:relative;">
                 <div style="position:absolute; top:0.75rem; right:1rem; color:#75684f; font-size:0.85rem; white-space:nowrap;">
-                    {mode}
+                    {escape(mode)}
                 </div>
-        
+
                 <div class="sentence-card" style="margin-top:1.6rem;">
                     <div class="small-label">대표 해석</div>
                     <div style="color:#75684f; font-size:0.9rem; margin-bottom:0.75rem;">
@@ -1380,7 +1452,7 @@ else:
             """,
             unsafe_allow_html=True,
         )
-        
+
         if len(items) > 3:
             if not st.session_state.show_all_results:
                 if st.button("더보기", use_container_width=True):
@@ -1424,14 +1496,8 @@ else:
                 key=f"select_meaning_{register_pika_text}",
             )
 
-            custom_meaning = st.text_input(
-                "직접 수정해서 등록하기",
-                value=selected_meaning,
-                key=f"custom_meaning_{register_pika_text}",
-            )
-
             if st.button("선택한 해석으로 등록", use_container_width=True, key=f"register_{register_pika_text}"):
-                ok, message = register_selected_pika_meaning(register_pika_text, custom_meaning)
+                ok, message = register_selected_pika_meaning(register_pika_text, selected_meaning)
 
                 if ok:
                     st.success(message)
@@ -1446,6 +1512,10 @@ else:
                 render_match_card(match)
                 st.divider()
 
+
+# =========================================================
+# 사전 등록 / 관리
+# =========================================================
 
 st.divider()
 
@@ -1480,9 +1550,9 @@ with st.form("add_new_expression", clear_on_submit=True):
             st.session_state.translation_result = None
             st.session_state.show_all_results = False
 
-            saved, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
+            saved_to_github, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
 
-            if saved:
+            if saved_to_github:
                 st.success(f'"{new_pika}" → "{new_meaning}" 등록 완료. GitHub에 자동 저장됐습니다.')
             else:
                 st.warning(f'"{new_pika}" → "{new_meaning}" 임시 등록 완료. GitHub 저장은 실패했습니다.')
@@ -1508,9 +1578,9 @@ if st.session_state.custom_pica_dict:
             st.session_state.translation_result = None
             st.session_state.show_all_results = False
 
-            saved, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
+            saved_to_github, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
 
-            if saved:
+            if saved_to_github:
                 st.success(f'"{delete_target}" 표현을 삭제했고, GitHub에도 반영했습니다.')
             else:
                 st.warning(f'"{delete_target}" 표현은 현재 세션에서 삭제됐지만, GitHub 저장은 실패했습니다.')
@@ -1520,6 +1590,10 @@ if st.session_state.custom_pica_dict:
 else:
     st.info("아직 새로 등록한 표현이 없습니다.")
 
+
+# =========================================================
+# 사전 검색 / 백업
+# =========================================================
 
 st.divider()
 
@@ -1614,9 +1688,9 @@ with st.expander("백업 / 복원", expanded=False):
                     st.session_state.show_all_results = False
 
                     if restored_count > 0:
-                        saved, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
+                        saved_to_github, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
 
-                        if saved:
+                        if saved_to_github:
                             st.success(f"JSON에서 새 표현 {restored_count}개를 복원했고, GitHub에도 저장했습니다.")
                         else:
                             st.warning(f"JSON에서 새 표현 {restored_count}개를 복원했습니다. GitHub 저장은 실패했습니다.")
