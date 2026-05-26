@@ -1,3 +1,4 @@
+import json
 import random
 from difflib import SequenceMatcher
 
@@ -493,6 +494,8 @@ st.markdown(
 st.markdown('<div class="main-title">⚡ 피카츄어 번역기</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">입력한 언어를 자동 감지해서 번역합니다. 등록된 표현은 등록 뜻을 우선하고, 등록되지 않은 표현은 비슷한 단어와 패턴을 바탕으로 추정합니다.</div>', unsafe_allow_html=True)
 
+
+
 if "example_text" not in st.session_state:
     st.session_state.example_text = ""
 if "translation_result" not in st.session_state:
@@ -577,7 +580,7 @@ with right:
 
 st.divider()
 st.subheader("새 피카츄어 표현 등록")
-st.caption("앱을 실행 중인 동안 새 표현이 바로 사전에 반영됩니다. Streamlit Cloud에서 재시작하면 기본 사전으로 돌아갈 수 있습니다.")
+st.caption("새 표현은 현재 앱 세션에 임시 저장됩니다. 아래 다운로드 버튼으로 JSON 파일을 백업할 수 있습니다.")
 
 with st.form("add_new_expression", clear_on_submit=True):
     new_pika = st.text_input("새 피카츄어", placeholder="예: 피카츄우웅!")
@@ -603,12 +606,25 @@ with st.form("add_new_expression", clear_on_submit=True):
                     current_custom[new_pika].append(new_meaning)
                 st.session_state.custom_pica_dict = current_custom
             st.session_state.translation_result = None
-            st.success(f'"{new_pika}" → "{new_meaning}" 등록 완료')
+            st.success(f'"{new_pika}" → "{new_meaning}" 임시 등록 완료')
 
 if st.session_state.custom_pica_dict:
     with st.expander("내가 새로 등록한 표현 보기", expanded=False):
         for pika, meanings in st.session_state.custom_pica_dict.items():
             st.write(f"**{pika}** → {', '.join(meanings)}")
+
+    custom_json = json.dumps(
+        st.session_state.custom_pica_dict,
+        ensure_ascii=False,
+        indent=2,
+    )
+    st.download_button(
+        label="새로 등록한 표현 JSON 다운로드",
+        data=custom_json,
+        file_name="custom_pikachu_dictionary.json",
+        mime="application/json",
+        use_container_width=True,
+    )
 
 st.divider()
 st.subheader("사전 검색")
