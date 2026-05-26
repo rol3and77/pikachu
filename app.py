@@ -14,10 +14,6 @@ st.set_page_config(
 )
 
 
-# =========================================================
-# 기본 피카츄어 사전
-# =========================================================
-
 PICA_DICT = {
     "피캇츄~!": ["안녕!"],
     "피카피": ["한지우(사토시)"],
@@ -66,10 +62,6 @@ PICA_DICT = {
 }
 
 
-# =========================================================
-# 기본 유틸
-# =========================================================
-
 def normalize_text(text: str) -> str:
     text = str(text)
     text = text.replace("！", "!").replace("？", "?").replace("，", ",")
@@ -84,14 +76,8 @@ def clean_korean(text: str) -> str:
 
 
 def normalize_meaning_key(text: str) -> str:
-    text = clean_korean(text)
-    text = text.replace(" ", "")
-    return text.strip()
+    return clean_korean(text).replace(" ", "").strip()
 
-
-# =========================================================
-# GitHub 자동 저장 / 불러오기
-# =========================================================
 
 def github_config_ready() -> bool:
     required_keys = [
@@ -136,7 +122,6 @@ def clean_custom_dict(data: dict) -> dict[str, list[str]]:
 
         for meaning in meanings:
             meaning = normalize_text(str(meaning))
-
             if meaning and meaning not in cleaned[pika]:
                 cleaned[pika].append(meaning)
 
@@ -226,10 +211,6 @@ def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool,
         return False, str(error)
 
 
-# =========================================================
-# 세션 상태
-# =========================================================
-
 if "custom_pica_dict" not in st.session_state:
     st.session_state.custom_pica_dict = load_custom_dict_from_github()
 
@@ -239,10 +220,6 @@ if "translation_result" not in st.session_state:
 if "example_text" not in st.session_state:
     st.session_state.example_text = ""
 
-
-# =========================================================
-# 사전 관련
-# =========================================================
 
 def get_current_dict() -> dict[str, list[str]]:
     merged = {key: value[:] for key, value in PICA_DICT.items()}
@@ -369,10 +346,6 @@ def meaning_usage_hint(meaning: str) -> str:
     return "문맥에 따라 사용"
 
 
-# =========================================================
-# 언어 감지
-# =========================================================
-
 def detect_language(text: str) -> str:
     text = normalize_text(text)
     if not text:
@@ -452,10 +425,6 @@ def resolve_mode(text: str, auto_mode: bool, manual_mode: str) -> str:
         return manual_mode
     return "피카츄어 → 한국어" if detect_language(text) == "pika" else "한국어 → 피카츄어"
 
-
-# =========================================================
-# 피카츄어 추정
-# =========================================================
 
 def confidence_label(score: float) -> str:
     if score >= 0.78:
@@ -636,10 +605,6 @@ def estimate_registered(phrase: str, meanings: list[str]) -> tuple[list[str], li
     return estimates, reasons
 
 
-# =========================================================
-# 한국어 → 피카츄어 생성
-# =========================================================
-
 def add_intent_score(scores: dict, intent: str, pika: str, points: int, reason: str):
     if intent not in scores:
         scores[intent] = {"score": 0, "pika": pika, "reasons": []}
@@ -756,17 +721,14 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
         add("학교 스트레스 표현", "school", 50, "과제, 시험, 팀플, 학점 등 대학 생활 스트레스 단어가 포함되어 있습니다.")
     if has_any(["수업", "강의", "교수", "조교", "출석", "지각", "결석", "수강신청"]):
         add("학교 상황 표현", "school", 35, "수업, 강의, 교수님 등 학교 상황 단어가 있어 일반 학교 관련 표현으로 판단했습니다.")
-
     if has_any(["하고싶", "싶다", "원해", "됐으면", "바라", "제발", "가고싶", "먹고싶", "자고싶"]):
         add("바람이나 소망 표현", "wish", 35, "하고 싶다, 원하다, 제발 같은 소망 표현이 있습니다.")
     if has_any(["살려", "탈출", "도망", "해방", "집가", "집에가", "퇴근", "하교"]):
         add("탈출하고 싶은 표현", "escape", 60, "살려, 탈출, 집에 가고 싶다 계열 표현이 있어 강한 탈출 욕구로 판단했습니다.")
-
     if has_any(["피곤", "힘들", "지침", "지쳐", "졸려", "졸림", "잠와", "잠오", "밤샘", "새벽", "무기력"]):
         add("피곤하거나 지친 표현", "tired", 60, "피곤함, 졸림, 밤샘, 지침 계열 단어가 있어 축 처진 감정으로 판단했습니다.")
     if has_any(["현타", "멘붕", "망했", "망함", "노답", "조졌다", "망"]):
         add("멘붕 또는 망했다는 표현", "negative", 55, "현타, 멘붕, 망함 계열 단어가 있어 절망이나 당황 감정으로 판단했습니다.")
-
     if has_any(["좋아", "좋다", "신나", "행복", "기뻐", "최고", "개꿀", "꿀", "드디어", "재밌", "설레", "감동"]):
         add("기쁨 또는 신남 표현", "positive", 60, "좋다, 신난다, 행복하다, 개꿀 등 긍정 감정 단어가 있습니다.")
     if has_any(["짜증", "화나", "빡", "열받", "킹받", "극혐", "싫어", "싫다", "별로", "귀찮", "하기싫", "가기싫"]):
@@ -775,7 +737,6 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
         add("슬픔 또는 불안 표현", "tired", 55, "슬픔, 불안, 외로움 계열 단어가 있어 처진 감정 표현으로 판단했습니다.")
     if has_any(["억울", "어이없", "황당", "말도안", "에바", "개에바"]):
         add("황당하거나 어이없는 표현", "question", 55, "어이없다, 황당하다, 에바 같은 표현이 있어 되묻는 말투로 판단했습니다.")
-
     if has_any(["안녕", "하이", "반가", "ㅎㅇ", "헬로"]):
         add_intent_score(scores, "인사 표현", "피캇츄~!", 80, "인사 표현은 등록 표현 피캇츄~!와 직접 연결됩니다.")
     if has_any(["잘가", "바이", "빠이", "작별", "나중에", "낼봐", "내일보자"]):
@@ -788,10 +749,8 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
         add("긍정 또는 동의 표현", "yes", 75, "응, 맞아, 알았어 계열 표현을 짧은 긍정 피카츄어로 변환했습니다.")
     if has_any(["아니", "ㄴㄴ", "노노", "싫어"]):
         add_intent_score(scores, "부정 또는 거절 표현", "츄-", 75, "아니, 싫어 계열 표현은 등록 표현 츄-와 연결됩니다.")
-
     if "?" in original or has_any(["왜", "뭐", "무슨", "어떻게", "언제", "어디", "누구", "몇", "얼마", "될까", "가능", "맞나"]):
         add("질문 또는 되묻는 표현", "question", 60, "질문어 또는 물음표가 있어 되묻는 표현으로 판단했습니다.")
-
     if has_any(["배고", "밥먹", "먹고싶", "마라탕", "떡볶이", "치킨", "라면", "학식"]):
         add("배고픔 또는 먹고 싶은 표현", "food", 50, "배고픔이나 음식 욕구가 있어 밝은 요구 표현으로 변환했습니다.")
     if has_any(["술", "맥주", "소주", "취하고", "마시고싶"]):
@@ -800,7 +759,6 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
         add("카페인이 필요한 표현", "tired", 45, "커피와 카페인 단어가 있어 피곤하지만 버티려는 표현으로 변환했습니다.")
     if has_any(["자고", "잠", "쉬고", "쉬자", "눕고", "침대"]):
         add("쉬고 싶거나 자고 싶은 표현", "tired", 55, "잠, 쉬고 싶다, 눕고 싶다 계열 단어가 있어 피곤한 표현으로 판단했습니다.")
-
     if has_any(["가자", "해보자", "이기", "화이팅", "파이팅", "불태우", "전투", "공격", "시작"]):
         add("전투 준비 또는 의지 표현", "battle", 60, "가자, 해보자, 파이팅 계열 단어가 있어 전투 준비 표현으로 바꿨습니다.")
 
@@ -835,10 +793,6 @@ def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
 
     return estimates, list(dict.fromkeys(reasons))
 
-
-# =========================================================
-# 번역 함수
-# =========================================================
 
 def find_pika_to_korean(text: str) -> list[dict]:
     text = normalize_text(text)
@@ -1001,10 +955,6 @@ def translate_safely(text: str, auto_mode: bool, manual_mode: str) -> tuple[str,
     return "피카츄어 → 한국어", pika_matches
 
 
-# =========================================================
-# 학습 / 대표 해석
-# =========================================================
-
 def clean_learned_meaning(korean_meaning: str) -> str:
     meaning = normalize_text(korean_meaning)
 
@@ -1102,8 +1052,8 @@ def is_new_pika_expression(user_input: str, matches: list[dict]) -> bool:
     return any(match.get("type") == "추정" for match in matches)
 
 
-def representative_sentence(matches: list[dict], mode: str) -> str:
-    pieces = []
+def representative_items(matches: list[dict]) -> list[dict]:
+    items = []
 
     for match in matches:
         meanings = match.get("meanings", [])
@@ -1114,18 +1064,40 @@ def representative_sentence(matches: list[dict], mode: str) -> str:
             if meaning not in ["등록된 뜻 없음", "등록된 표현 없음"]
         ]
 
-        if valid_meanings:
-            pieces.append(" / ".join(valid_meanings))
-        elif estimates:
-            pieces.append(" / ".join(estimates[:3]))
+        source_items = valid_meanings if valid_meanings else estimates
 
-    if not pieces:
+        for item in source_items:
+            if not item:
+                continue
+
+            if item in ["등록된 한국어 뜻과 정확히 일치", "입력 문장 안에 등록된 뜻이 포함됨"]:
+                continue
+
+            items.append({
+                "text": item,
+                "usage": meaning_usage_hint(item),
+            })
+
+    unique = []
+    seen = set()
+
+    for item in items:
+        key = item["text"]
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(item)
+
+    return unique
+
+
+def representative_sentence(matches: list[dict], mode: str) -> str:
+    items = representative_items(matches)
+
+    if not items:
         return ""
 
-    if len(pieces) == 1:
-        return pieces[0]
-
-    return " ".join(pieces)
+    return "\n".join(item["text"] for item in items)
 
 
 def search_dictionary(query: str) -> list[tuple[str, list[str]]]:
@@ -1172,10 +1144,6 @@ def render_match_card(match: dict):
             for reason in match["reasons"]:
                 st.write("-", reason)
 
-
-# =========================================================
-# UI
-# =========================================================
 
 st.markdown(
     """
@@ -1225,11 +1193,26 @@ st.markdown(
         font-weight: 800;
         margin-bottom: 0.4rem;
     }
-    .phrase {
-        font-size: 1.2rem;
+    .result-item {
+        margin-bottom: 0.95rem;
+        padding-bottom: 0.65rem;
+        border-bottom: 1px solid rgba(234, 209, 125, 0.45);
+    }
+    .result-item:last-child {
+        border-bottom: 0;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+    .result-text {
+        font-size: 1.25rem;
         font-weight: 900;
         color: #5c3b18;
-        line-height: 1.6;
+        line-height: 1.5;
+    }
+    .usage-text {
+        font-size: 0.9rem;
+        color: #75684f;
+        margin-top: 0.15rem;
     }
     </style>
     """,
@@ -1334,13 +1317,30 @@ with right:
 
     else:
         mode = saved.get("mode", "")
-        sentence = saved.get("sentence", "")
         matches = saved.get("matches", [])
+        items = representative_items(matches)
 
         if saved.get("learned"):
             st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
         if saved.get("learned_pika"):
             st.success("새로운 피카츄어 표현을 추정 해석과 함께 임시 사전에 포함했습니다.")
+
+        if items:
+            item_html = ""
+            for item in items:
+                item_html += f"""
+                <div class="result-item">
+                    <div class="result-text">{item["text"]}</div>
+                    <div class="usage-text">{item["usage"]}</div>
+                </div>
+                """
+        else:
+            item_html = """
+            <div class="result-item">
+                <div class="result-text">해석 결과 없음</div>
+                <div class="usage-text">입력 내용을 다시 확인해주세요.</div>
+            </div>
+            """
 
         st.markdown(
             f"""
@@ -1350,7 +1350,7 @@ with right:
                 </div>
                 <div class="sentence-card" style="margin-top:1.6rem;">
                     <div class="small-label">대표 해석</div>
-                    <div class="phrase">{sentence if sentence else "해석 결과 없음"}</div>
+                    <div>{item_html}</div>
                 </div>
             </div>
             """,
@@ -1362,10 +1362,6 @@ with right:
                 render_match_card(match)
                 st.divider()
 
-
-# =========================================================
-# 사전 등록 / 관리
-# =========================================================
 
 st.divider()
 
@@ -1438,10 +1434,6 @@ if st.session_state.custom_pica_dict:
 else:
     st.info("아직 새로 등록한 표현이 없습니다.")
 
-
-# =========================================================
-# 사전 검색 / 백업
-# =========================================================
 
 st.divider()
 
