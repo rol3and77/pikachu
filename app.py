@@ -1380,16 +1380,12 @@ with right:
     saved = st.session_state.translation_result
 
     if saved is None:
-        st.markdown(
-            '<div class="result-panel">왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.</div>',
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.write("왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.")
 
     elif saved.get("status") == "empty":
-        st.markdown(
-            f'<div class="result-panel">{escape(saved.get("message", "번역할 문장을 입력해주세요."))}</div>',
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.write(saved.get("message", "번역할 문장을 입력해주세요."))
 
     else:
         mode = saved.get("mode", "")
@@ -1400,75 +1396,42 @@ with right:
             st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
 
         display_items = items if st.session_state.show_all_results else items[:3]
-        
-        if display_items:
-            item_html_parts = []
-            for item in display_items:
-                item_text = escape(str(item["text"]))
-                usage_text = escape(str(item["usage"]))
-        
-                item_html_parts.append(
-                    f"""
-                    <div class="result-item-box">
-                        <div class="result-main-text">{item_text}</div>
-                        <div class="result-usage-text">{usage_text}</div>
-                    </div>
-                    """
-                )
-        
-            item_html = "\n".join(item_html_parts)
-        else:
-            item_html = """
-            <div class="result-item-box">
-                <div class="result-main-text">해석 결과 없음</div>
-                <div class="result-usage-text">입력 내용을 다시 확인해주세요.</div>
-            </div>
-            """
-        
-        if len(items) > 3 and not st.session_state.show_all_results:
-            more_notice = f"""
-            <div class="more-notice">
-                전체 {len(items)}개 중 점수가 높은 3개만 표시 중입니다.
-            </div>
-            """
-        elif len(items) > 3 and st.session_state.show_all_results:
-            more_notice = f"""
-            <div class="more-notice">
-                전체 {len(items)}개 해석을 모두 표시 중입니다.
-            </div>
-            """
-        else:
-            more_notice = ""
-        
-        result_html = f"""
-        <div class="result-panel" style="position:relative;">
-            <div style="position:absolute; top:0.75rem; right:1rem; color:#75684f; font-size:0.85rem; white-space:nowrap;">
-                {escape(mode)}
-            </div>
-        
-            <div class="sentence-card" style="margin-top:1.6rem;">
-                <div class="small-label">대표 해석</div>
-                <div style="color:#75684f; font-size:0.9rem; margin-bottom:0.75rem;">
-                    점수가 높은 해석부터 표시됩니다.
-                </div>
-                {item_html}
-                {more_notice}
-            </div>
-        </div>
-        """
-        
-        st.markdown(result_html, unsafe_allow_html=True)
 
-        if len(items) > 3:
-            if not st.session_state.show_all_results:
-                if st.button("더보기", use_container_width=True):
-                    st.session_state.show_all_results = True
-                    st.rerun()
+        # 결과 박스 전체
+        with st.container(border=True):
+            top_col1, top_col2 = st.columns([2, 1])
+
+            with top_col1:
+                st.markdown("#### 대표 해석")
+
+            with top_col2:
+                st.caption(mode)
+
+            st.caption("점수가 높은 해석부터 표시됩니다.")
+
+            if display_items:
+                for item in display_items:
+                    with st.container(border=True):
+                        st.markdown(f"### {item['text']}")
+                        st.caption(item["usage"])
             else:
-                if st.button("접기", use_container_width=True):
-                    st.session_state.show_all_results = False
-                    st.rerun()
+                with st.container(border=True):
+                    st.markdown("### 해석 결과 없음")
+                    st.caption("입력 내용을 다시 확인해주세요.")
 
+            if len(items) > 3:
+                if not st.session_state.show_all_results:
+                    st.caption(f"전체 {len(items)}개 중 점수가 높은 3개만 표시 중입니다.")
+                    if st.button("더보기", use_container_width=True):
+                        st.session_state.show_all_results = True
+                        st.rerun()
+                else:
+                    st.caption(f"전체 {len(items)}개 해석을 모두 표시 중입니다.")
+                    if st.button("접기", use_container_width=True):
+                        st.session_state.show_all_results = False
+                        st.rerun()
+
+        # 새 피카츄어 표현 선택 등록
         new_pika_can_register = False
         register_candidates = []
         register_pika_text = ""
@@ -1517,7 +1480,6 @@ with right:
             for match in matches:
                 render_match_card(match)
                 st.divider()
-
 
 # =========================================================
 # 사전 등록 / 관리
