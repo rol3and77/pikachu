@@ -457,75 +457,61 @@ def find_pika_to_korean(text: str) -> list[dict]:
     return matches
 
 
+def add_intent_score(scores: dict, intent: str, pika: str, points: int, reason: str):
+    if intent not in scores:
+        scores[intent] = {"score": 0, "pika": pika, "reasons": []}
+    scores[intent]["score"] += points
+    scores[intent]["reasons"].append(reason)
+
+
 def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
     original = normalize_text(text)
-    cleaned = clean_korean(text).replace(" ", "")
-    estimates = []
-    reasons = []
+    compact = clean_korean(text).replace(" ", "")
+    spaced = clean_korean(text)
+    scores = {}
 
-    def add(pika: str, reason: str):
-        if pika not in estimates:
-            estimates.append(pika)
-        reasons.append(reason)
+    def has_any(words: list[str]) -> bool:
+        return any(word in compact for word in words)
 
-    # 욕망/희망/소원
-    if any(token in cleaned for token in ["하고싶", "싶다", "원해", "바라", "희망", "됐으면"]):
-        if any(token in cleaned for token in ["종강", "끝나", "끝났", "마무리", "방학", "쉬고싶", "쉬고"]):
-            add("피카아~ 츄우...", "'하고 싶다/싶다'와 '종강/끝/방학/쉬고 싶다' 계열 단어가 있어 간절한 바람이나 지친 감정으로 보았습니다.")
-        else:
-            add("피카츄~!", "'하고 싶다/원해/바라' 같은 욕망 표현이 있어 원하는 마음을 나타내는 피카츄어로 바꿨습니다.")
+    # 1. 대학생 탈출/종강/방학 욕망
+    if has_any(["종강", "방학", "휴강", "공강", "수업끝", "시험끝", "과제끝", "끝났", "끝나"]):
+        add_intent_score(scores, "종강/해방을 바라는 표현", "피카아~ 츄우...", 55, "종강, 방학, 휴강, 끝남 계열 단어가 있어 해방감이나 간절함으로 판단했습니다.")
+    if has_any(["하고싶", "싶다", "원해", "됐으면", "바라", "제발"]):
+        add_intent_score(scores, "바람이나 소망 표현", "피카츄~!", 30, "하고 싶다, 원하다, 제발 같은 소망 표현이 있습니다.")
+    if has_any(["살려", "탈출", "도망", "해방"]):
+        add_intent_score(scores, "간절한 탈출 욕구", "피카아... 츄우우...", 60, "살려, 탈출, 도망, 해방 같은 표현이 있어 강한 탈출 욕구로 판단했습니다.")
 
-    # 피곤/지침/슬픔
-    if any(token in cleaned for token in ["피곤", "힘들", "지침", "졸려", "죽겠", "우울", "슬퍼", "울고", "망했"]):
-        add("피-카츄...", "피곤함, 지침, 슬픔 계열 단어가 있어 처진 감정 표현으로 추정했습니다.")
+    # 2. 피곤/무기력/현타
+    if has_any(["피곤", "힘들", "지침", "지쳐", "졸려", "졸림", "잠와", "잠오", "밤샘", "새벽", "무기력"]):
+        add_intent_score(scores, "피곤하거나 지친 표현", "피-카츄...", 55, "피곤함, 졸림, 밤샘, 지침 계열 단어가 있어 축 처진 감정으로 판단했습니다.")
+    if has_any(["현타", "멘붕", "망했", "망함", "노답", "끝났다", "조졌다"]):
+        add_intent_score(scores, "멘붕 또는 망했다는 표현", "피-카... 츄우...", 55, "현타, 멘붕, 망함 계열 단어가 있어 절망이나 당황 감정으로 판단했습니다.")
 
-    # 기쁨/신남
-    if any(token in cleaned for token in ["좋아", "신나", "행복", "기뻐", "최고", "개꿀", "드디어"]):
-        add("챠아~!", "기쁨이나 신남을 나타내는 단어가 있어 기분 좋은 표현으로 변환했습니다.")
+    # 3. 과제/시험/학교 스트레스
+    if has_any(["과제", "레포트", "보고서", "발표", "팀플", "조별", "시험", "중간", "기말", "퀴즈", "학점", "재수강"]):
+        add_intent_score(scores, "학교 스트레스 표현", "피카아... 피-카츄...", 45, "과제, 시험, 팀플, 학점 등 대학 생활 스트레스 단어가 포함되어 있습니다.")
+    if has_any(["하기싫", "가기싫", "듣기싫", "공부하기싫", "귀찮"]):
+        add_intent_score(scores, "하기 싫거나 귀찮은 표현", "츄-", 50, "하기 싫다, 귀찮다 계열 단어가 있어 거절/부정 표현으로 판단했습니다.")
 
-    # 화남/짜증
-    if any(token in cleaned for token in ["짜증", "화나", "빡", "싫", "별로", "극혐"]):
-        add("츄-", "짜증, 싫음, 거절 계열 단어가 있어 부정 표현으로 변환했습니다.")
+    # 4. 기쁨/해방/신남
+    if has_any(["좋아", "좋다", "신나", "행복", "기뻐", "최고", "개꿀", "꿀", "드디어", "재밌", "설레", "감동"]):
+        add_intent_score(scores, "기쁨 또는 신남 표현", "챠아~!", 55, "좋다, 신난다, 행복하다, 개꿀 등 긍정 감정 단어가 있습니다.")
+    if has_any(["성공", "붙었다", "합격", "이겼", "해냈", "됐다"]):
+        add_intent_score(scores, "성공 또는 성취 표현", "피카! 피카츄!", 50, "성공, 합격, 해냈다 계열 표현이 있어 성취감으로 판단했습니다.")
 
-    # 의문/물음
-    if any(token in original for token in ["?", "뭐", "왜", "어떻게", "언제", "어디", "누구"]):
-        add("피~카~?", "질문어나 물음표가 있어 되묻는 피카츄어로 변환했습니다.")
+    # 5. 분노/짜증/거절
+    if has_any(["짜증", "화나", "빡", "열받", "킹받", "극혐", "싫어", "싫다", "별로"]):
+        add_intent_score(scores, "짜증 또는 거절 표현", "츄-", 60, "짜증, 화남, 싫음 계열 단어가 있어 부정/거절 표현으로 판단했습니다.")
+    if has_any(["억울", "어이없", "황당", "말도안", "개에바", "에바"]):
+        add_intent_score(scores, "황당하거나 어이없는 표현", "피~카~?", 50, "어이없다, 황당하다, 에바 같은 표현이 있어 되묻는 말투로 판단했습니다.")
 
-    # 사과
-    if any(token in cleaned for token in ["미안", "죄송", "사과"]):
-        add("피-카츄", "사과 표현이 있어 등록 표현 '피-카츄'로 변환했습니다.")
-
-    # 괜찮음/확인
-    if any(token in cleaned for token in ["괜찮", "괜찬", "문제없", "괜츈"]):
-        add("피-카-츄~?", "괜찮음이나 확인 표현이 있어 '괜찮아?' 계열로 변환했습니다.")
-
-    # 긍정/동의
-    if any(token in cleaned for token in ["응", "맞아", "알았", "그래", "오케이", "ㅇㅋ"]):
-        add("피카!", "긍정이나 동의 표현이 있어 등록 표현 '피카!'로 변환했습니다.")
-
-    # 전투/공격/열정
-    if any(token in cleaned for token in ["싸우", "전투", "공격", "이기", "가자", "해보자", "불태우"]):
-        add("피이카-피카!", "전투, 도전, 시작 의지가 있어 전투 준비 표현으로 변환했습니다.")
-
-    # 인사/작별
-    if any(token in cleaned for token in ["안녕", "하이", "반가", "ㅎㅇ"]):
-        add("피캇츄~!", "인사 표현이 있어 등록 표현 '피캇츄~!'로 변환했습니다.")
-    if any(token in cleaned for token in ["잘가", "바이", "빠이", "작별", "나중에"]):
-        add("피카-피카!", "작별 표현이 있어 등록 표현 '피카-피카!'로 변환했습니다.")
-
-    # 기본 fallback: 감정이 명확하지 않은 일반 문장
-    if not estimates:
-        if len(cleaned) <= 4:
-            add("피카?", "짧은 한국어 입력이라 짧은 의문/반응형 피카츄어로 변환했습니다.")
-        elif len(cleaned) <= 9:
-            add("피카피카~", "등록된 뜻은 없지만 짧은 일반 감정문으로 보고 부드러운 피카츄어 문장으로 생성했습니다.")
-        else:
-            add("피카피카츄~!", "등록된 뜻은 없지만 긴 한국어 문장이라 강조가 있는 피카츄어 문장으로 생성했습니다.")
-
-    return estimates, list(dict.fromkeys(reasons))
-
-
-def find_korean_to_pika(text: str) -> list[dict]:
+    # 6. 사과/확인/긍정/부정
+    if has_any(["미안", "죄송", "사과"]):
+        add_intent_score(scores, "사과 표현", "피-카츄", 80, "사과 표현은 등록 표현 '피-카츄'와 직접 연결됩니다.")
+    if has_any(["괜찮", "괜찬", "문제없", "괜츈"]):
+        add_intent_score(scores, "괜찮은지 확인하는 표현", "피-카-츄~?", 70, "괜찮다/괜찮아 계열 표현은 등록 표현 '피-카-츄~?'와 연결됩니다.")
+    if has_any(["응", "맞아", "알았", "그래", "오케이", "ㅇㅋ", "ㅇㅇ"]):
+        add_intent_score(scores, "긍정 또는 동의 표현", "피카!", 70, "응, 맞아, 알았어 계열 표현은 등록
     text = clean_korean(text)
     if not text:
         return []
