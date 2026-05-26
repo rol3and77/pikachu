@@ -1181,7 +1181,13 @@ def find_korean_to_pika(text: str) -> list[dict]:
             )
             used.add(cleaned_key)
 
-    if matches:
+    # 동사 단독 입력이면 기존 부분매칭보다 새 단어 생성 우선
+    normalized_input = normalize_korean_verb_form(cleaned_text)
+    is_single_word = " " not in cleaned_text
+    
+    verb_like = normalized_input.endswith(("하다", "가다", "먹다", "자다", "보다", "듣다", "사다", "오다", "주다"))
+    
+    if matches and not (is_single_word and verb_like):
         return matches
     
     new_word = generate_new_pika_word(text)
