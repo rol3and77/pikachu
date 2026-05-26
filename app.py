@@ -1327,33 +1327,60 @@ with right:
         if saved.get("learned"):
             st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
 
+display_items = items if st.session_state.show_all_results else items[:3]
+
+if display_items:
+    item_html = ""
+    for item in display_items:
+        item_html += f"""
+        <div class="result-item-box">
+            <div class="result-main-text">{item["text"]}</div>
+            <div class="result-usage-text">{item["usage"]}</div>
+        </div>
+        """
+else:
+    item_html = """
+    <div class="result-item-box">
+        <div class="result-main-text">해석 결과 없음</div>
+        <div class="result-usage-text">입력 내용을 다시 확인해주세요.</div>
+    </div>
+    """
+
+if len(items) > 3 and not st.session_state.show_all_results:
+    more_notice = f"""
+    <div class="more-notice">
+        전체 {len(items)}개 중 점수가 높은 3개만 표시 중입니다.
+    </div>
+    """
+elif len(items) > 3 and st.session_state.show_all_results:
+    more_notice = f"""
+    <div class="more-notice">
+        전체 {len(items)}개 해석을 모두 표시 중입니다.
+    </div>
+    """
+else:
+    more_notice = ""
+
         st.markdown(
             f"""
             <div class="result-panel" style="position:relative;">
                 <div style="position:absolute; top:0.75rem; right:1rem; color:#75684f; font-size:0.85rem; white-space:nowrap;">
                     {mode}
                 </div>
+        
                 <div class="sentence-card" style="margin-top:1.6rem;">
                     <div class="small-label">대표 해석</div>
-                    <div style="color:#75684f; font-size:0.9rem;">점수가 높은 해석부터 표시됩니다.</div>
+                    <div style="color:#75684f; font-size:0.9rem; margin-bottom:0.75rem;">
+                        점수가 높은 해석부터 표시됩니다.
+                    </div>
+                    {item_html}
+                    {more_notice}
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-        display_items = items if st.session_state.show_all_results else items[:3]
-
-        if display_items:
-            for item in display_items:
-                with st.container(border=True):
-                    st.markdown(f"### {item['text']}")
-                    st.caption(item["usage"])
-        else:
-            with st.container(border=True):
-                st.markdown("### 해석 결과 없음")
-                st.caption("입력 내용을 다시 확인해주세요.")
-
+        
         if len(items) > 3:
             if not st.session_state.show_all_results:
                 if st.button("더보기", use_container_width=True):
