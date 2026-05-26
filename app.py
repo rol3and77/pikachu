@@ -123,7 +123,65 @@ def clean_korean(text: str) -> str:
 def normalize_meaning_key(text: str) -> str:
     return clean_korean(text).replace(" ", "").strip()
 
+def normalize_korean_verb_form(text: str) -> str:
+    text = clean_korean(text)
 
+    replacements = [
+        ("하고싶어", "하고싶다"),
+        ("가고싶어", "가고싶다"),
+        ("먹고싶어", "먹고싶다"),
+        ("자고싶어", "자고싶다"),
+        ("보고싶어", "보고싶다"),
+        ("듣고싶어", "듣고싶다"),
+        ("사고싶어", "사고싶다"),
+        ("쉬고싶어", "쉬고싶다"),
+    ]
+
+    for old, new in replacements:
+        text = text.replace(old, new)
+
+    endings = {
+        "좋아해": "좋아하다",
+        "좋아한다": "좋아하다",
+        "좋아했다": "좋아하다",
+        "좋아해요": "좋아하다",
+
+        "싫어해": "싫어하다",
+        "싫어한다": "싫어하다",
+        "싫어했다": "싫어하다",
+
+        "해": "하다",
+        "한다": "하다",
+        "했다": "하다",
+
+        "가": "가다",
+        "간다": "가다",
+        "갔다": "가다",
+
+        "먹어": "먹다",
+        "먹는다": "먹다",
+        "먹었다": "먹다",
+
+        "자": "자다",
+        "잤다": "자다",
+
+        "봐": "보다",
+        "봤다": "보다",
+
+        "들어": "듣다",
+        "들었다": "듣다",
+
+        "사": "사다",
+        "샀다": "사다",
+    }
+
+    for ending, base in endings.items():
+        if text.endswith(ending):
+            stem = text[:-len(ending)]
+            if stem:
+                return stem + base
+
+    return text
 # =========================================================
 # GitHub 자동 저장 / 불러오기
 # =========================================================
@@ -401,8 +459,13 @@ def get_current_reverse_dict() -> dict[str, list[str]]:
     for pika, meanings in current.items():
         for meaning in meanings:
             for alias in get_aliases(meaning):
-                keys = {alias, clean_korean(alias), normalize_meaning_key(alias)}
-
+                keys = {
+                    alias,
+                    clean_korean(alias),
+                    normalize_meaning_key(alias),
+                    normalize_meaning_key(normalize_korean_verb_form(alias)),
+                }
+                
                 for key in keys:
                     if not key:
                         continue
@@ -1068,7 +1131,7 @@ def compose_sentence_from_tokens(tokens: list[str]) -> str | None:
 def find_korean_to_pika(text: str) -> list[dict]:
     raw_text = normalize_text(text)
     text = clean_korean(text)
-    meaning_key = normalize_meaning_key(text)
+    meaning_key = normalize_meaning_key(normalize_korean_verb_form(text))
     reverse_dict = get_current_reverse_dict()
 
     if not text:
@@ -1089,7 +1152,7 @@ def find_korean_to_pika(text: str) -> list[dict]:
     used = set()
 
     for word in [part.strip() for part in text.split() if part.strip()]:
-        word_key = normalize_meaning_key(word)
+        word_key = normalize_meaning_key(normalize_korean_verb_form(word))
 
         if word_key in reverse_dict:
             matches.append(
