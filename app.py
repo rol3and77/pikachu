@@ -126,14 +126,40 @@ def detect_language(text: str) -> str:
     text = normalize_text(text)
     if not text:
         return "unknown"
+
     current_dict = get_current_dict()
     if text in current_dict:
         return "pika"
+
+    compact = text.replace(" ", "")
+    hangul_chars = [ch for ch in compact if "가" <= ch <= "힣"]
+    if not hangul_chars:
+        return "unknown"
+
+    pika_syllables = {"피", "카", "츄", "챠", "핏", "캇"}
+    pika_like_count = sum(1 for ch in hangul_chars if ch in pika_syllables)
+    pika_ratio = pika_like_count / max(len(hangul_chars), 1)
+
     pika_keywords = ["피카", "피캇", "피이카", "피피", "피핏", "핏카", "츄", "챠아"]
-    keyword_hits = sum(1 for keyword in pika_keywords if keyword in text)
-    pika_chars = sum(text.count(ch) for ch in ["피", "카", "츄", "핏", "챠"])
-    if keyword_hits >= 1 and pika_chars >= 2:
+    korean_intent_keywords = [
+        "하고", "싶", "종강", "학교", "과제", "시험", "피곤", "힘들", "좋아", "싫어", "미안",
+        "왜", "뭐", "어떻게", "언제", "끝", "방학", "수업", "오늘", "내일", "나", "너",
+        "사랑", "짜증", "화나", "졸려", "배고", "집", "가기", "가고", "먹고", "자고"
+    ]
+
+    has_pika_keyword = any(keyword in compact for keyword in pika_keywords)
+    has_korean_intent = any(keyword in compact for keyword in korean_intent_keywords)
+
+    # 한국어 의미 단어가 있으면 피/카/츄 일부가 섞여도 한국어로 우선 처리한다.
+    if has_korean_intent:
+        return "korean"
+
+    # 피카츄어는 보통 피/카/츄 계열 음절 비율이 높다.
+    if has_pika_keyword and pika_ratio >= 0.45:
         return "pika"
+    if pika_ratio >= 0.70:
+        return "pika"
+
     return "korean"
 
 
@@ -152,15 +178,17 @@ def match_quality(matches: list[dict]) -> int:
         meanings = match.get("meanings", [])
         estimates = match.get("estimates", [])
         if match_type in ["등록된 표현", "정확히 일치"]:
-            score += 100
+            score += 120
         elif match_type == "부분 번역":
-            score += 70
+            score += 80
+        elif match_type == "한국어 문장 추정":
+            score += 65
         elif match_type == "추정":
-            score += 35
+            score += 30
         if meanings and meanings[0] not in ["등록된 뜻 없음", "등록된 표현 없음"]:
             score += 25
         if estimates:
-            score += 15
+            score += 10
     return score
 
 
@@ -176,22 +204,28 @@ def translate_safely(text: str, auto_mode: bool, manual_mode: str) -> tuple[str,
         estimates, reasons = estimate_unknown_pika(text)
         return mode, [make_match(text, ["등록된 뜻 없음"], "추정", estimates, reasons)]
 
+    detected = detect_language(text)
     pika_matches = find_pika_to_korean(text)
     korean_matches = find_korean_to_pika(text)
     pika_score = match_quality(pika_matches)
     korean_score = match_quality(korean_matches)
 
-    # 피카츄어처럼 보이면 동점이어도 피카츄어 해석을 우선한다.
-    detected = detect_language(text)
-    if detected == "pika" and pika_score >= korean_score - 20:
-        return "피카츄어 → 한국어", pika_matches
-    if korean_score > pika_score:
+    # 자동 감지는 점수보다 입력 언어 판별을 우선한다.
+    if detected == "korean":
+        has_exact_pika = any(m.get("type") == "등록된 표현" for m in pika_matches)
+        if has_exact_pika and pika_score >= korean_score + 40:
+            return "피카츄어 → 한국어", pika_matches
         return "한국어 → 피카츄어", korean_matches
-    if pika_matches:
+
+    if detected == "pika":
+        has_exact_korean = any(m.get("type") == "정확히 일치" for m in korean_matches)
+        if has_exact_korean and korean_score >= pika_score + 40:
+            return "한국어 → 피카츄어", korean_matches
         return "피카츄어 → 한국어", pika_matches
 
-    estimates, reasons = estimate_unknown_pika(text)
-    return "피카츄어 → 한국어", [make_match(text, ["등록된 뜻 없음"], "추정", estimates, reasons)]
+    if korean_score >= pika_score:
+        return "한국어 → 피카츄어", korean_matches
+    return "피카츄어 → 한국어", pika_matches
 
 
 def confidence_label(score: float) -> str:
