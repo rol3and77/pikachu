@@ -398,6 +398,74 @@ def find_pika_to_korean(text: str) -> list[dict]:
     return matches
 
 
+def estimate_korean_to_pika(text: str) -> tuple[list[str], list[str]]:
+    original = normalize_text(text)
+    cleaned = clean_korean(text).replace(" ", "")
+    estimates = []
+    reasons = []
+
+    def add(pika: str, reason: str):
+        if pika not in estimates:
+            estimates.append(pika)
+        reasons.append(reason)
+
+    # 욕망/희망/소원
+    if any(token in cleaned for token in ["하고싶", "싶다", "원해", "바라", "희망", "됐으면"]):
+        if any(token in cleaned for token in ["종강", "끝나", "끝났", "마무리", "방학", "쉬고싶", "쉬고"]):
+            add("피카아~ 츄우...", "'하고 싶다/싶다'와 '종강/끝/방학/쉬고 싶다' 계열 단어가 있어 간절한 바람이나 지친 감정으로 보았습니다.")
+        else:
+            add("피카츄~!", "'하고 싶다/원해/바라' 같은 욕망 표현이 있어 원하는 마음을 나타내는 피카츄어로 바꿨습니다.")
+
+    # 피곤/지침/슬픔
+    if any(token in cleaned for token in ["피곤", "힘들", "지침", "졸려", "죽겠", "우울", "슬퍼", "울고", "망했"]):
+        add("피-카츄...", "피곤함, 지침, 슬픔 계열 단어가 있어 처진 감정 표현으로 추정했습니다.")
+
+    # 기쁨/신남
+    if any(token in cleaned for token in ["좋아", "신나", "행복", "기뻐", "최고", "개꿀", "드디어"]):
+        add("챠아~!", "기쁨이나 신남을 나타내는 단어가 있어 기분 좋은 표현으로 변환했습니다.")
+
+    # 화남/짜증
+    if any(token in cleaned for token in ["짜증", "화나", "빡", "싫", "별로", "극혐"]):
+        add("츄-", "짜증, 싫음, 거절 계열 단어가 있어 부정 표현으로 변환했습니다.")
+
+    # 의문/물음
+    if any(token in original for token in ["?", "뭐", "왜", "어떻게", "언제", "어디", "누구"]):
+        add("피~카~?", "질문어나 물음표가 있어 되묻는 피카츄어로 변환했습니다.")
+
+    # 사과
+    if any(token in cleaned for token in ["미안", "죄송", "사과"]):
+        add("피-카츄", "사과 표현이 있어 등록 표현 '피-카츄'로 변환했습니다.")
+
+    # 괜찮음/확인
+    if any(token in cleaned for token in ["괜찮", "괜찬", "문제없", "괜츈"]):
+        add("피-카-츄~?", "괜찮음이나 확인 표현이 있어 '괜찮아?' 계열로 변환했습니다.")
+
+    # 긍정/동의
+    if any(token in cleaned for token in ["응", "맞아", "알았", "그래", "오케이", "ㅇㅋ"]):
+        add("피카!", "긍정이나 동의 표현이 있어 등록 표현 '피카!'로 변환했습니다.")
+
+    # 전투/공격/열정
+    if any(token in cleaned for token in ["싸우", "전투", "공격", "이기", "가자", "해보자", "불태우"]):
+        add("피이카-피카!", "전투, 도전, 시작 의지가 있어 전투 준비 표현으로 변환했습니다.")
+
+    # 인사/작별
+    if any(token in cleaned for token in ["안녕", "하이", "반가", "ㅎㅇ"]):
+        add("피캇츄~!", "인사 표현이 있어 등록 표현 '피캇츄~!'로 변환했습니다.")
+    if any(token in cleaned for token in ["잘가", "바이", "빠이", "작별", "나중에"]):
+        add("피카-피카!", "작별 표현이 있어 등록 표현 '피카-피카!'로 변환했습니다.")
+
+    # 기본 fallback: 감정이 명확하지 않은 일반 문장
+    if not estimates:
+        if len(cleaned) <= 4:
+            add("피카?", "짧은 한국어 입력이라 짧은 의문/반응형 피카츄어로 변환했습니다.")
+        elif len(cleaned) <= 9:
+            add("피카피카~", "등록된 뜻은 없지만 짧은 일반 감정문으로 보고 부드러운 피카츄어 문장으로 생성했습니다.")
+        else:
+            add("피카피카츄~!", "등록된 뜻은 없지만 긴 한국어 문장이라 강조가 있는 피카츄어 문장으로 생성했습니다.")
+
+    return estimates, list(dict.fromkeys(reasons))
+
+
 def find_korean_to_pika(text: str) -> list[dict]:
     text = clean_korean(text)
     if not text:
@@ -418,7 +486,15 @@ def find_korean_to_pika(text: str) -> list[dict]:
             used.add(cleaned_key)
     if matches:
         return matches
-    return [make_match(text, ["등록된 표현 없음"], "추정", ["아직 대응되는 피카츄어가 사전에 없습니다"], ["한국어 뜻과 정확히 일치하거나 부분 일치하는 등록 항목을 찾지 못했습니다."])]
+
+    estimates, reasons = estimate_korean_to_pika(text)
+    return [make_match(
+        text,
+        ["등록된 표현 없음"],
+        "한국어 문장 추정",
+        estimates,
+        reasons,
+    )]
 
 
 def representative_sentence(matches: list[dict], mode: str) -> str:
