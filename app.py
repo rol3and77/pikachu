@@ -497,6 +497,23 @@ def find_korean_to_pika(text: str) -> list[dict]:
     )]
 
 
+def learn_generated_translation(korean_text: str, pika_text: str):
+    pika_text = normalize_text(pika_text)
+    korean_text = normalize_text(korean_text)
+    if not pika_text or not korean_text:
+        return
+
+    current_dict = get_current_dict()
+    if pika_text in current_dict:
+        return
+
+    custom = st.session_state.get("custom_pica_dict", {})
+    custom.setdefault(pika_text, [])
+    if korean_text not in custom[pika_text]:
+        custom[pika_text].append(korean_text)
+    st.session_state.custom_pica_dict = custom
+
+
 def representative_sentence(matches: list[dict], mode: str) -> str:
     pieces = []
     for match in matches:
@@ -607,11 +624,19 @@ with left:
         else:
             mode, matches = translate_safely(user_input, auto_mode, manual_mode)
             sentence = representative_sentence(matches, mode)
+            learned = False
+            if mode == "한국어 → 피카츄어" and sentence:
+                current_dict = get_current_dict()
+                if sentence not in current_dict:
+                    learn_generated_translation(user_input, sentence)
+                    learned = True
+
             st.session_state.translation_result = {
                 "status": "ok",
                 "mode": mode,
                 "sentence": sentence,
                 "matches": matches,
+                "learned": learned,
             }
 
     if st.button("랜덤 예문 넣기", use_container_width=True):
@@ -638,6 +663,8 @@ with right:
         sentence = saved.get("sentence", "")
         matches = saved.get("matches", [])
         st.caption(f"감지된 번역 방향: {mode}")
+        if saved.get("learned"):
+            st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다. 이제 반대로 입력해도 한국어 뜻으로 해석할 수 있어요.")
         st.markdown(
             f'''
             <div class="result-panel">
