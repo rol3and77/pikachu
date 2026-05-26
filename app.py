@@ -258,6 +258,39 @@ def find_pika_to_korean(text: str) -> list[dict]:
     return matches
 
 
+def detect_language(text: str) -> str:
+    normalized = normalize_text(text)
+    if not normalized:
+        return "unknown"
+
+    if normalized in PICA_DICT:
+        return "pika"
+
+    pika_chars = sum(normalized.count(ch) for ch in ["피", "카", "츄", "챠", "핏"])
+    hangul_chars = sum(1 for ch in normalized if "가" <= ch <= "힣")
+    pika_keywords = ["피카", "피캇", "피이카", "츄", "핏카", "피핏", "챠아"]
+    keyword_hits = sum(1 for keyword in pika_keywords if keyword in normalized)
+
+    if keyword_hits >= 1 and pika_chars >= 2:
+        return "pika"
+    if hangul_chars > 0:
+        return "korean"
+
+    return "unknown"
+
+
+def resolve_mode(text: str, selected_mode: str) -> str:
+    if selected_mode != "자동 감지":
+        return selected_mode
+
+    detected = detect_language(text)
+    if detected == "pika":
+        return "피카츄어 → 한국어"
+    if detected == "korean":
+        return "한국어 → 피카츄어"
+    return "피카츄어 → 한국어"
+
+
 def find_korean_to_pika(text: str) -> list[dict]:
     text = clean_korean(text)
     if not text:
@@ -389,11 +422,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-mode = st.radio(
-    "번역 방향",
-    ["피카츄어 → 한국어", "한국어 → 피카츄어"],
-    horizontal=True,
-)
+auto_mode = st.toggle("언어 자동 감지", value=True)
+
+if auto_mode:
+    mode = "자동 감지"
+else:
+    mode = st.radio(
+        "번역 방향",
+        ["피카츄어 → 한국어", "한국어 → 피카츄어"],
+        horizontal=True,
+    )
 
 if "translation_result" not in st.session_state:
     st.session_state.translation_result = None
@@ -408,7 +446,7 @@ with input_col:
         "",
         value="",
         height=260,
-        placeholder="예: 피캇츄~! 피카피 피카!" if mode == "피카츄어 → 한국어" else "예: 안녕 한지우 알았어",
+        placeholder="예: 피캇츄~! 피카피 피카! 또는 안녕 한지우 알았어",
         label_visibility="collapsed",
     )
 
@@ -419,11 +457,12 @@ with input_col:
                 "message": "번역할 문장을 입력해주세요.",
             }
         else:
-            matches = find_pika_to_korean(user_input) if mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
-            sentence = make_sentence(matches, mode)
+            resolved_mode = resolve_mode(user_input, mode)
+            matches = find_pika_to_korean(user_input) if resolved_mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
+            sentence = make_sentence(matches, resolved_mode)
             st.session_state.translation_result = {
                 "status": "ok",
-                "mode": mode,
+                "mode": resolved_mode,
                 "input": user_input,
                 "sentence": sentence,
                 "matches": matches,
@@ -455,6 +494,8 @@ with output_col:
     else:
         sentence = saved.get("sentence", "")
         matches = saved.get("matches", [])
+        detected_mode = saved.get("mode", "")
+        st.caption(f"감지된 번역 방향: {detected_mode}")
 
         if sentence:
             st.markdown(
