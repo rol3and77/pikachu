@@ -812,20 +812,8 @@ with left:
         st.rerun()
 
 with right:
+    st.subheader("해석 결과")
     saved = st.session_state.translation_result
-    if saved and saved.get("status") == "ok":
-        mode_label = saved.get("mode", "")
-        st.markdown(
-            f"""
-            <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:0.4rem;">
-                <h2 style="margin:0; font-size:1.75rem; font-weight:800;">해석 결과</h2>
-                <span style="color:#75684f; font-size:0.95rem; white-space:nowrap;">감지된 번역 방향: {mode_label}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.subheader("해석 결과")
 
     if saved is None:
         st.markdown('<div class="result-panel">왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.</div>', unsafe_allow_html=True)
@@ -841,8 +829,11 @@ with right:
             st.success("새로운 피카츄어 표현을 추정 해석과 함께 임시 사전에 포함했습니다. 다음부터는 등록된 표현처럼 사용할 수 있어요.")
         st.markdown(
             f'''
-            <div class="result-panel">
-                <div class="sentence-card">
+            <div class="result-panel" style="position:relative;">
+                <div style="position:absolute; top:0.75rem; right:1rem; color:#75684f; font-size:0.85rem; white-space:nowrap;">
+                    {mode}
+                </div>
+                <div class="sentence-card" style="margin-top:1.6rem;">
                     <div class="small-label">대표 해석</div>
                     <div class="phrase">{sentence if sentence else "해석 결과 없음"}</div>
                 </div>
