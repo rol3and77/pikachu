@@ -1309,7 +1309,9 @@ def clean_learned_meaning(korean_meaning: str) -> str:
 def generate_new_pika_word(seed: str) -> str:
     import hashlib
 
-    patterns = [
+    current = get_current_dict()
+
+    core_patterns = [
         "피카츄",
         "피카-츄",
         "피카~츄",
@@ -1344,25 +1346,22 @@ def generate_new_pika_word(seed: str) -> str:
         "피이카.츄피카",
     ]
 
-    current = get_current_dict()
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
 
-    h = int(hashlib.md5(seed.encode()).hexdigest(), 16)
-    start = h % len(patterns)
+    idx = int(digest[:8], 16) % len(core_patterns)
+    candidate = core_patterns[idx]
 
-    for i in range(len(patterns)):
-        candidate = patterns[(start + i) % len(patterns)]
+    if candidate not in current:
+        return candidate
 
-        if candidate not in current:
-            return candidate
-
-    extra = 1
+    offset = 1
     while True:
-        candidate = "피카" + ("츄피" * extra)
+        variant = candidate + ("피" * offset)
 
-        if candidate not in current:
-            return candidate
+        if variant not in current:
+            return variant
 
-        extra += 1
+        offset += 1
         
 def learn_generated_translation(korean_text: str, pika_text: str) -> bool:
     pika_text = normalize_text(pika_text)
