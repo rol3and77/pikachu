@@ -69,14 +69,7 @@ PICA_DICT = {
 # 세션 상태
 # =========================================================
 
-if "custom_pica_dict" not in st.session_state:
-    st.session_state.custom_pica_dict = load_custom_dict_from_github()
 
-if "translation_result" not in st.session_state:
-    st.session_state.translation_result = None
-
-if "example_text" not in st.session_state:
-    st.session_state.example_text = ""
 
 
 # =========================================================
@@ -206,6 +199,15 @@ def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool,
 
     except Exception as error:
         return False, str(error)
+        
+if "custom_pica_dict" not in st.session_state:
+    st.session_state.custom_pica_dict = load_custom_dict_from_github()
+
+if "translation_result" not in st.session_state:
+    st.session_state.translation_result = None
+
+if "example_text" not in st.session_state:
+    st.session_state.example_text = ""
 
 def normalize_text(text: str) -> str:
     text = str(text)
