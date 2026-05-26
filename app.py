@@ -259,45 +259,56 @@ st.markdown(
 
 st.markdown('<div class="main-title">⚡ 피카츄어 번역기</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="subtitle">피카츄어를 한국어로 해석하거나, 한국어를 피카츄어로 바꿔볼 수 있습니다. 단어가 2개 이상 해석되면 자연스럽게 연결한 문장도 함께 보여줍니다.</div>',
+    '<div class="subtitle">왼쪽에 피카츄어 또는 한국어를 입력하면 오른쪽에 번역 결과가 표시됩니다. 두 단어 이상 해석되면 자연스럽게 이어진 문장도 함께 보여줍니다.</div>',
     unsafe_allow_html=True,
 )
 
-mode = st.radio(
-    "번역 방향",
-    ["피카츄어 → 한국어", "한국어 → 피카츄어"],
-    horizontal=True,
-)
+left_col, right_col = st.columns([1, 1], gap="large")
 
-examples = {
-    "피카츄어 → 한국어": [
-        "피캇츄~! 피카피 피카!",
-        "피카! 피카피",
-        "피이카-피카! 피이카츄우우우우우",
-        "피~카~?",
-        "츄우-핏카!",
-    ],
-    "한국어 → 피카츄어": [
-        "안녕 한지우 알았어",
-        "전투 준비 완료 10만볼트",
-        "아니 싫어",
-        "아이언테일",
-        "난 피카츄",
-    ],
-}
+with left_col:
+    st.subheader("입력")
 
-selected_example = st.selectbox("예시 선택", ["직접 입력"] + examples[mode])
+    mode = st.radio(
+        "번역 방향",
+        ["피카츄어 → 한국어", "한국어 → 피카츄어"],
+        horizontal=True,
+    )
 
-default_text = "" if selected_example == "직접 입력" else selected_example
-user_input = st.text_area(
-    "입력",
-    value=default_text,
-    height=130,
-    placeholder="예: 피캇츄~! 피카피 피카!" if mode == "피카츄어 → 한국어" else "예: 안녕 한지우 알았어",
-)
+    examples = {
+        "피카츄어 → 한국어": [
+            "피캇츄~! 피카피 피카!",
+            "피카! 피카피",
+            "피이카-피카! 피이카츄우우우우우",
+            "피~카~?",
+            "츄우-핏카!",
+        ],
+        "한국어 → 피카츄어": [
+            "안녕 한지우 알았어",
+            "전투 준비 완료 10만볼트",
+            "아니 싫어",
+            "아이언테일",
+            "난 피카츄",
+        ],
+    }
 
-if st.button("번역하기", type="primary", use_container_width=True):
-    if not user_input.strip():
+    selected_example = st.selectbox("예시 선택", ["직접 입력"] + examples[mode])
+    default_text = "" if selected_example == "직접 입력" else selected_example
+
+    user_input = st.text_area(
+        "번역할 문장",
+        value=default_text,
+        height=220,
+        placeholder="예: 피캇츄~! 피카피 피카!" if mode == "피카츄어 → 한국어" else "예: 안녕 한지우 알았어",
+    )
+
+    translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
+
+with right_col:
+    st.subheader("해석 결과")
+
+    if not translate_clicked:
+        st.info("왼쪽에 문장을 입력하고 번역하기를 눌러주세요.")
+    elif not user_input.strip():
         st.warning("번역할 문장을 입력해주세요.")
     else:
         matches = find_pika_to_korean(user_input) if mode == "피카츄어 → 한국어" else find_korean_to_pika(user_input)
@@ -313,8 +324,18 @@ if st.button("번역하기", type="primary", use_container_width=True):
                 """,
                 unsafe_allow_html=True,
             )
+        else:
+            st.markdown(
+                """
+                <div class="sentence-card">
+                    <div class="small-label">문장 해석</div>
+                    <div class="phrase">단어가 2개 이상 해석되면 여기에 자연스럽게 이어진 문장이 표시됩니다.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-        st.subheader("단어별 해석")
+        st.markdown("#### 단어별 해석")
         for match in matches:
             meanings = match["meanings"]
             if len(meanings) == 1:
@@ -333,6 +354,7 @@ if st.button("번역하기", type="primary", use_container_width=True):
                 unsafe_allow_html=True,
             )
 
+st.divider()
 with st.expander("등록된 피카츄어 사전 보기"):
     for pika, meanings in PICA_DICT.items():
         st.write(f"**{pika}** → {', '.join(meanings)}")
