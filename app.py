@@ -153,7 +153,20 @@ def estimate_registered_pika(word: str, meanings: list[str]) -> list[str]:
     joined = ", ".join(meanings)
 
     if any(token in joined for token in ["10만볼트", "번개", "아이언테일", "볼트태클", "일렉트릭", "스파킹", "울트라"]):
-        estimates.append("기술명 또는 전투 중 공격 표현으로 해석할 수 있
+        estimates.append("기술명 또는 전투 중 공격 표현으로 해석할 수 있음")
+    if any(token in joined for token in ["안녕", "작별", "뭐라고", "괜찮아", "미안", "응", "아니", "싫어"]):
+        estimates.append("일상 대화나 감정 반응 표현으로 해석할 수 있음")
+    if len(meanings) >= 2:
+        estimates.append("하나의 표현에 여러 뜻이 있으므로 문맥에 따라 의미가 달라질 수 있음")
+    if any(token in joined for token in ["한지우", "최이슬", "웅이", "봄이", "나빛나", "세레나", "시트론", "로켓단"]):
+        estimates.append("특정 인물이나 대상을 부르는 호칭으로 해석할 수 있음")
+    if any(token in joined for token in ["꼬부기", "파이리", "리자몽", "버터플", "브케인", "팽도리", "코코"]):
+        estimates.append("특정 포켓몬을 가리키는 호칭으로 해석할 수 있음")
+
+    if not estimates:
+        estimates.append("등록된 뜻을 기준으로 해석하는 표현입니다")
+
+    return estimates
 
 
 def find_pika_to_korean(text: str) -> list[dict]:
@@ -162,22 +175,42 @@ def find_pika_to_korean(text: str) -> list[dict]:
         return []
 
     if text in PICA_DICT:
-        return [{"phrase": text, "meanings": PICA_DICT[text], "type": "정확히 일치"}]
+        return [{
+            "phrase": text,
+            "meanings": PICA_DICT[text],
+            "type": "등록된 표현",
+            "estimates": estimate_registered_pika(text, PICA_DICT[text]),
+        }]
 
     matches = []
     remaining = text
 
     for key in sorted(PICA_DICT.keys(), key=len, reverse=True):
         if key in remaining:
-            matches.append({"phrase": key, "meanings": PICA_DICT[key], "type": "부분 해석"})
+            matches.append({
+                "phrase": key,
+                "meanings": PICA_DICT[key],
+                "type": "등록된 표현",
+                "estimates": estimate_registered_pika(key, PICA_DICT[key]),
+            })
             remaining = remaining.replace(key, " ")
 
     leftovers = [item.strip() for item in remaining.split() if item.strip()]
     for item in leftovers:
-        matches.append({"phrase": item, "meanings": guess_pika_meaning(item), "type": "추정"})
+        matches.append({
+            "phrase": item,
+            "meanings": ["등록된 뜻 없음"],
+            "type": "추정",
+            "estimates": guess_pika_meaning(item),
+        })
 
     if not matches:
-        matches.append({"phrase": text, "meanings": guess_pika_meaning(text), "type": "추정"})
+        matches.append({
+            "phrase": text,
+            "meanings": ["등록된 뜻 없음"],
+            "type": "추정",
+            "estimates": guess_pika_meaning(text),
+        })
 
     return matches
 
@@ -355,12 +388,22 @@ with output_col:
             else:
                 meaning_html = "<ul>" + "".join(f"<li>{item}</li>" for item in meanings) + "</ul>"
 
+            estimates = match.get("estimates", [])
+            if estimates:
+                estimate_html = "<hr style='border:0;border-top:1px solid #efd56f;margin:0.75rem 0;'>"
+                estimate_html += "<b>추정 해석</b>"
+                estimate_html += "<ul>" + "".join(f"<li>{item}</li>" for item in estimates) + "</ul>"
+            else:
+                estimate_html = ""
+
             st.markdown(
                 f"""
                 <div class="result-card">
                     <div class="small-label">{match['type']}</div>
                     <div class="phrase">{match['phrase']}</div>
+                    <div><b>등록된 뜻</b></div>
                     <div>{meaning_html}</div>
+                    <div>{estimate_html}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
