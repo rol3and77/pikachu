@@ -240,19 +240,23 @@ def find_pika_to_korean(text: str) -> list[dict]:
 
     leftovers = [item.strip() for item in remaining.split() if item.strip()]
     for item in leftovers:
+        guess = guess_pika_meaning(item)
         matches.append({
             "phrase": item,
             "meanings": ["등록된 뜻 없음"],
             "type": "추정",
-            "estimates": guess_pika_meaning(item),
+            "estimates": guess["estimates"],
+            "reasons": guess["reasons"],
         })
 
     if not matches:
+        guess = guess_pika_meaning(text)
         matches.append({
             "phrase": text,
             "meanings": ["등록된 뜻 없음"],
             "type": "추정",
-            "estimates": guess_pika_meaning(text),
+            "estimates": guess["estimates"],
+            "reasons": guess["reasons"],
         })
 
     return matches
@@ -318,10 +322,18 @@ def make_sentence(matches: list[dict], mode: str) -> str:
 
     pieces = []
     for match in valid:
-        first = match["meanings"][0]
-        if first == "등록된 뜻 없음" and match.get("estimates"):
-            first = match["estimates"][0]
-        pieces.append(first)
+        meanings = match.get("meanings", [])
+        first = meanings[0] if meanings else ""
+
+        if first == "등록된 뜻 없음":
+            estimates = match.get("estimates", [])
+            first = estimates[0] if estimates else "추정 가능한 대표 해석이 없습니다"
+
+        if first:
+            pieces.append(first)
+
+    if not pieces:
+        return ""
 
     if len(pieces) == 1:
         return pieces[0]
@@ -331,7 +343,7 @@ def make_sentence(matches: list[dict], mode: str) -> str:
 
     sentence = pieces[0]
     for word in pieces[1:]:
-        clean = word.replace("의 표현", "").replace("일 때의 표현", "").strip()
+        clean = str(word).replace("의 표현", "").replace("일 때의 표현", "").strip()
 
         if any(token in clean for token in ["응", "알았어", "맞아"]):
             sentence += ", 알았어!"
@@ -528,12 +540,22 @@ with output_col:
                     meaning_html = "<ul>" + "".join(f"<li>{item}</li>" for item in meanings) + "</ul>"
 
                 estimates = match.get("estimates", [])
+                reasons = match.get("reasons", [])
+
                 if estimates:
                     estimate_html = "<hr style='border:0;border-top:1px solid #efd56f;margin:0.75rem 0;'>"
                     estimate_html += "<b>추정 해석</b>"
                     estimate_html += "<ul>" + "".join(f"<li>{item}</li>" for item in estimates) + "</ul>"
                 else:
                     estimate_html = ""
+
+                if reasons:
+                    reason_html = "<details style='margin-top:0.75rem;'>"
+                    reason_html += "<summary><b>왜 그렇게 추정했는지 보기</b></summary>"
+                    reason_html += "<ul>" + "".join(f"<li>{item}</li>" for item in reasons) + "</ul>"
+                    reason_html += "</details>"
+                else:
+                    reason_html = ""
 
                 st.markdown(
                     f"""
@@ -543,6 +565,7 @@ with output_col:
                         <div><b>등록된 뜻</b></div>
                         <div>{meaning_html}</div>
                         <div>{estimate_html}</div>
+                        <div>{reason_html}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
