@@ -1130,10 +1130,13 @@ def compose_sentence_from_tokens(tokens: list[str]) -> str | None:
     
 def find_korean_to_pika(text: str) -> list[dict]:
     raw_text = normalize_text(text)
-    text = clean_korean(text)
-    meaning_key = normalize_meaning_key(normalize_korean_verb_form(text))
-    reverse_dict = get_current_reverse_dict()
+    cleaned_text = clean_korean(text)
 
+    meaning_key = normalize_meaning_key(
+        normalize_korean_verb_form(cleaned_text)
+    )
+
+    reverse_dict = get_current_reverse_dict()
     if not text:
         return []
 
