@@ -1400,16 +1400,23 @@ with right:
             st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
 
         display_items = items if st.session_state.show_all_results else items[:3]
-
+        
         if display_items:
-            item_html = ""
+            item_html_parts = []
             for item in display_items:
-                item_html += f"""
-                <div class="result-item-box">
-                    <div class="result-main-text">{escape(str(item["text"]))}</div>
-                    <div class="result-usage-text">{escape(str(item["usage"]))}</div>
-                </div>
-                """
+                item_text = escape(str(item["text"]))
+                usage_text = escape(str(item["usage"]))
+        
+                item_html_parts.append(
+                    f"""
+                    <div class="result-item-box">
+                        <div class="result-main-text">{item_text}</div>
+                        <div class="result-usage-text">{usage_text}</div>
+                    </div>
+                    """
+                )
+        
+            item_html = "\n".join(item_html_parts)
         else:
             item_html = """
             <div class="result-item-box">
@@ -1417,7 +1424,7 @@ with right:
                 <div class="result-usage-text">입력 내용을 다시 확인해주세요.</div>
             </div>
             """
-
+        
         if len(items) > 3 and not st.session_state.show_all_results:
             more_notice = f"""
             <div class="more-notice">
@@ -1432,26 +1439,25 @@ with right:
             """
         else:
             more_notice = ""
-
-        st.markdown(
-            f"""
-            <div class="result-panel" style="position:relative;">
-                <div style="position:absolute; top:0.75rem; right:1rem; color:#75684f; font-size:0.85rem; white-space:nowrap;">
-                    {escape(mode)}
-                </div>
-
-                <div class="sentence-card" style="margin-top:1.6rem;">
-                    <div class="small-label">대표 해석</div>
-                    <div style="color:#75684f; font-size:0.9rem; margin-bottom:0.75rem;">
-                        점수가 높은 해석부터 표시됩니다.
-                    </div>
-                    {item_html}
-                    {more_notice}
-                </div>
+        
+        result_html = f"""
+        <div class="result-panel" style="position:relative;">
+            <div style="position:absolute; top:0.75rem; right:1rem; color:#75684f; font-size:0.85rem; white-space:nowrap;">
+                {escape(mode)}
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        
+            <div class="sentence-card" style="margin-top:1.6rem;">
+                <div class="small-label">대표 해석</div>
+                <div style="color:#75684f; font-size:0.9rem; margin-bottom:0.75rem;">
+                    점수가 높은 해석부터 표시됩니다.
+                </div>
+                {item_html}
+                {more_notice}
+            </div>
+        </div>
+        """
+        
+        st.markdown(result_html, unsafe_allow_html=True)
 
         if len(items) > 3:
             if not st.session_state.show_all_results:
