@@ -98,14 +98,35 @@ def build_reverse_dict() -> dict[str, list[str]]:
     return reverse
 
 
-REVERSE_DICT = build_reverse_dict()
+BASE_REVERSE_DICT = build_reverse_dict()
+
+
+def get_current_dict() -> dict[str, list[str]]:
+    custom = st.session_state.get("custom_pica_dict", {})
+    merged = {key: value[:] for key, value in PICA_DICT.items()}
+    for key, value in custom.items():
+        merged[key] = value[:]
+    return merged
+
+
+def get_current_reverse_dict() -> dict[str, list[str]]:
+    current = get_current_dict()
+    reverse = {}
+    for pika, meanings in current.items():
+        for meaning in meanings:
+            for alias in get_aliases(meaning):
+                reverse.setdefault(alias, [])
+                if pika not in reverse[alias]:
+                    reverse[alias].append(pika)
+    return reverse
 
 
 def detect_language(text: str) -> str:
     text = normalize_text(text)
     if not text:
         return "unknown"
-    if text in PICA_DICT:
+    current_dict = get_current_dict()
+    if text in current_dict:
         return "pika"
     pika_keywords = ["피카", "피캇", "피이카", "피피", "피핏", "핏카", "츄", "챠아"]
     keyword_hits = sum(1 for keyword in pika_keywords if keyword in text)
@@ -182,7 +203,8 @@ def confidence_label(score: float) -> str:
 
 def similarity_candidates(word: str) -> list[dict]:
     results = []
-    for candidate, meanings in PICA_DICT.items():
+    current_dict = get_current_dict()
+    for candidate, meanings in current_dict.items():
         score = SequenceMatcher(None, word, candidate).ratio()
         simple_word = word.replace("!", "").replace("?", "")
         simple_candidate = candidate.replace("!", "").replace("?", "")
@@ -355,15 +377,16 @@ def find_pika_to_korean(text: str) -> list[dict]:
     text = normalize_text(text)
     if not text:
         return []
-    if text in PICA_DICT:
-        estimates, reasons = estimate_registered(text, PICA_DICT[text])
-        return [make_match(text, PICA_DICT[text], "등록된 표현", estimates, reasons)]
+    current_dict = get_current_dict()
+    if text in current_dict:
+        estimates, reasons = estimate_registered(text, current_dict[text])
+        return [make_match(text, current_dict[text], "등록된 표현", estimates, reasons)]
     matches = []
     remaining = text
-    for key in sorted(PICA_DICT.keys(), key=len, reverse=True):
+    for key in sorted(current_dict.keys(), key=len, reverse=True):
         if key in remaining:
-            estimates, reasons = estimate_registered(key, PICA_DICT[key])
-            matches.append(make_match(key, PICA_DICT[key], "등록된 표현", estimates, reasons))
+            estimates, reasons = estimate_registered(key, current_dict[key])
+            matches.append(make_match(key, current_dict[key], "등록된 표현", estimates, reasons))
             remaining = remaining.replace(key, " ")
     for item in [part.strip() for part in remaining.split() if part.strip()]:
         estimates, reasons = estimate_unknown_pika(item)
@@ -378,15 +401,16 @@ def find_korean_to_pika(text: str) -> list[dict]:
     text = clean_korean(text)
     if not text:
         return []
-    if text in REVERSE_DICT:
-        return [make_match(text, REVERSE_DICT[text], "정확히 일치", ["등록된 한국어 뜻과 정확히 일치"], [f'한국어 뜻 "{text}"가 사전에 등록되어 있습니다.'])]
+    reverse_dict = get_current_reverse_dict()
+    if text in reverse_dict:
+        return [make_match(text, reverse_dict[text], "정확히 일치", ["등록된 한국어 뜻과 정확히 일치"], [f'한국어 뜻 "{text}"가 사전에 등록되어 있습니다.'])]
     matches = []
     used = set()
     for word in [part.strip() for part in text.split() if part.strip()]:
-        if word in REVERSE_DICT:
-            matches.append(make_match(word, REVERSE_DICT[word], "정확히 일치", ["등록된 한국어 뜻과 정확히 일치"], [f'한국어 뜻 "{word}"가 사전에 등록되어 있습니다.']))
+        if word in reverse_dict:
+            matches.append(make_match(word, reverse_dict[word], "정확히 일치", ["등록된 한국어 뜻과 정확히 일치"], [f'한국어 뜻 "{word}"가 사전에 등록되어 있습니다.']))
             used.add(word)
-    for key in sorted(REVERSE_DICT.keys(), key=len, reverse=True):
+    for key in sorted(reverse_dict.keys(), key=len, reverse=True):
         cleaned_key = clean_korean(key)
         if cleaned_key and cleaned_key not in used and cleaned_key in text:
             matches.append(make_match(key, REVERSE_DICT[key], "부분 번역", ["입력 문장 안에 등록된 뜻이 포함됨"], [f'입력문 안에 등록된 한국어 뜻 "{key}"가 포함되어 있습니다.']))
@@ -433,7 +457,7 @@ def search_dictionary(query: str) -> list[tuple[str, list[str]]]:
     if not query:
         return []
     results = []
-    for pika, meanings in PICA_DICT.items():
+    for pika, meanings in get_current_dict().items():
         joined = " ".join([pika] + meanings)
         if query in clean_korean(joined):
             results.append((pika, meanings))
@@ -473,6 +497,8 @@ if "example_text" not in st.session_state:
     st.session_state.example_text = ""
 if "translation_result" not in st.session_state:
     st.session_state.translation_result = None
+if "custom_pica_dict" not in st.session_state:
+    st.session_state.custom_pica_dict = {}
 
 auto_mode = st.toggle("언어 자동 감지", value=True)
 manual_mode = "피카츄어 → 한국어"
@@ -550,6 +576,41 @@ with right:
                 st.divider()
 
 st.divider()
+st.subheader("새 피카츄어 표현 등록")
+st.caption("앱을 실행 중인 동안 새 표현이 바로 사전에 반영됩니다. Streamlit Cloud에서 재시작하면 기본 사전으로 돌아갈 수 있습니다.")
+
+with st.form("add_new_expression", clear_on_submit=True):
+    new_pika = st.text_input("새 피카츄어", placeholder="예: 피카츄우웅!")
+    new_meaning = st.text_input("뜻", placeholder="예: 신난 피카츄의 외침")
+    submitted = st.form_submit_button("사전에 등록하기", use_container_width=True)
+
+    if submitted:
+        new_pika = normalize_text(new_pika)
+        new_meaning = normalize_text(new_meaning)
+        if not new_pika or not new_meaning:
+            st.warning("피카츄어와 뜻을 모두 입력해주세요.")
+        else:
+            current_custom = st.session_state.custom_pica_dict
+            if new_pika in PICA_DICT:
+                base_meanings = PICA_DICT[new_pika][:]
+                if new_meaning not in base_meanings:
+                    st.session_state.custom_pica_dict[new_pika] = base_meanings + [new_meaning]
+                else:
+                    st.session_state.custom_pica_dict[new_pika] = base_meanings
+            else:
+                current_custom.setdefault(new_pika, [])
+                if new_meaning not in current_custom[new_pika]:
+                    current_custom[new_pika].append(new_meaning)
+                st.session_state.custom_pica_dict = current_custom
+            st.session_state.translation_result = None
+            st.success(f'"{new_pika}" → "{new_meaning}" 등록 완료')
+
+if st.session_state.custom_pica_dict:
+    with st.expander("내가 새로 등록한 표현 보기", expanded=False):
+        for pika, meanings in st.session_state.custom_pica_dict.items():
+            st.write(f"**{pika}** → {', '.join(meanings)}")
+
+st.divider()
 st.subheader("사전 검색")
 query = st.text_input("피카츄어 또는 한국어 뜻 검색", placeholder="예: 꼬부기, 10만볼트, 피카피")
 if query.strip():
@@ -561,5 +622,5 @@ if query.strip():
         st.info("검색 결과가 없습니다.")
 
 with st.expander("등록된 피카츄어 사전 전체 보기", expanded=False):
-    for pika, meanings in PICA_DICT.items():
+    for pika, meanings in get_current_dict().items():
         st.write(f"**{pika}** → {', '.join(meanings)}")
