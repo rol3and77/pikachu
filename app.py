@@ -599,6 +599,40 @@ def learn_generated_translation(korean_text: str, pika_text: str):
     st.session_state.custom_pica_dict = custom
 
 
+def learn_unknown_pika_expression(pika_text: str, korean_meaning: str):
+    pika_text = normalize_text(pika_text)
+    korean_meaning = normalize_text(korean_meaning)
+
+    if not pika_text or not korean_meaning:
+        return False
+    if korean_meaning in ["해석 결과 없음", "추정 가능한 대표 해석이 없습니다", "추정 불가"]:
+        return False
+
+    current_dict = get_current_dict()
+    if pika_text in current_dict:
+        return False
+
+    custom = st.session_state.get("custom_pica_dict", {})
+    custom.setdefault(pika_text, [])
+    if korean_meaning not in custom[pika_text]:
+        custom[pika_text].append(korean_meaning)
+        st.session_state.custom_pica_dict = custom
+        return True
+
+    st.session_state.custom_pica_dict = custom
+    return False
+
+
+def is_new_pika_expression(user_input: str, matches: list[dict]) -> bool:
+    text = normalize_text(user_input)
+    current_dict = get_current_dict()
+    if not text or text in current_dict:
+        return False
+    if not matches:
+        return False
+    return any(match.get("type") == "추정" for match in matches)
+
+
 def representative_sentence(matches: list[dict], mode: str) -> str:
     pieces = []
     for match in matches:
@@ -710,11 +744,16 @@ with left:
             mode, matches = translate_safely(user_input, auto_mode, manual_mode)
             sentence = representative_sentence(matches, mode)
             learned = False
+            learned_pika = False
+
             if mode == "한국어 → 피카츄어" and sentence:
                 current_dict = get_current_dict()
                 if sentence not in current_dict:
                     learn_generated_translation(user_input, sentence)
                     learned = True
+
+            if mode == "피카츄어 → 한국어" and sentence and is_new_pika_expression(user_input, matches):
+                learned_pika = learn_unknown_pika_expression(user_input, sentence)
 
             st.session_state.translation_result = {
                 "status": "ok",
@@ -722,6 +761,7 @@ with left:
                 "sentence": sentence,
                 "matches": matches,
                 "learned": learned,
+                "learned_pika": learned_pika,
             }
 
     if st.button("랜덤 예문 넣기", use_container_width=True):
@@ -750,6 +790,8 @@ with right:
         st.caption(f"감지된 번역 방향: {mode}")
         if saved.get("learned"):
             st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다. 이제 반대로 입력해도 한국어 뜻으로 해석할 수 있어요.")
+        if saved.get("learned_pika"):
+            st.success("새로운 피카츄어 표현을 추정 해석과 함께 임시 사전에 포함했습니다. 다음부터는 등록된 표현처럼 사용할 수 있어요.")
         st.markdown(
             f'''
             <div class="result-panel">
