@@ -70,7 +70,7 @@ PICA_DICT = {
 # =========================================================
 
 if "custom_pica_dict" not in st.session_state:
-    st.session_state.custom_pica_dict = {}
+    st.session_state.custom_pica_dict = load_custom_dict_from_github()
 
 if "translation_result" not in st.session_state:
     st.session_state.translation_result = None
@@ -82,6 +82,130 @@ if "example_text" not in st.session_state:
 # =========================================================
 # 기본 유틸
 # =========================================================
+def github_config_ready() -> bool:
+    required_keys = [
+        "github_token",
+        "github_repo",
+        "github_branch",
+        "github_json_path",
+    ]
+    return all(key in st.secrets for key in required_keys)
+
+
+def get_github_headers() -> dict:
+    return {
+        "Authorization": f"Bearer {st.secrets['github_token']}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def get_github_file_url() -> str:
+    repo = st.secrets["github_repo"]
+    path = st.secrets["github_json_path"]
+    return f"https://api.github.com/repos/{repo}/contents/{path}"
+
+
+def load_custom_dict_from_github() -> dict[str, list[str]]:
+    if not github_config_ready():
+        return {}
+
+    try:
+        response = requests.get(
+            get_github_file_url(),
+            headers=get_github_headers(),
+            params={"ref": st.secrets["github_branch"]},
+            timeout=10,
+        )
+
+        if response.status_code != 200:
+            return {}
+
+        data = response.json()
+        content = base64.b64decode(data["content"]).decode("utf-8")
+        parsed = json.loads(content)
+
+        if not isinstance(parsed, dict):
+            return {}
+
+        cleaned = {}
+        for pika, meanings in parsed.items():
+            pika = normalize_text(str(pika))
+
+            if isinstance(meanings, str):
+                meanings = [meanings]
+
+            if not isinstance(meanings, list):
+                continue
+
+            cleaned[pika] = []
+            for meaning in meanings:
+                meaning = normalize_text(str(meaning))
+                if meaning and meaning not in cleaned[pika]:
+                    cleaned[pika].append(meaning)
+
+            if not cleaned[pika]:
+                del cleaned[pika]
+
+        return cleaned
+
+    except Exception:
+        return {}
+
+
+def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool, str]:
+    if not github_config_ready():
+        return False, "GitHub Secrets 설정이 없습니다."
+
+    try:
+        file_url = get_github_file_url()
+        headers = get_github_headers()
+        branch = st.secrets["github_branch"]
+
+        get_response = requests.get(
+            file_url,
+            headers=headers,
+            params={"ref": branch},
+            timeout=10,
+        )
+
+        sha = None
+        if get_response.status_code == 200:
+            sha = get_response.json().get("sha")
+
+        json_text = json.dumps(
+            custom_dict,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        encoded_content = base64.b64encode(
+            json_text.encode("utf-8")
+        ).decode("utf-8")
+
+        payload = {
+            "message": "Update custom Pikachu dictionary",
+            "content": encoded_content,
+            "branch": branch,
+        }
+
+        if sha:
+            payload["sha"] = sha
+
+        put_response = requests.put(
+            file_url,
+            headers=headers,
+            json=payload,
+            timeout=10,
+        )
+
+        if put_response.status_code in [200, 201]:
+            return True, "GitHub에 저장 완료"
+
+        return False, f"GitHub 저장 실패: {put_response.status_code}"
+
+    except Exception as error:
+        return False, str(error)
 
 def normalize_text(text: str) -> str:
     text = str(text)
@@ -1064,6 +1188,9 @@ with left:
 
             if mode == "피카츄어 → 한국어" and sentence and is_new_pika_expression(user_input, matches):
                 learned_pika = learn_unknown_pika_expression(user_input, sentence)
+                
+            if learned or learned_pika:
+                save_custom_dict_to_github(st.session_state.custom_pica_dict)
 
             st.session_state.translation_result = {
                 "status": "ok",
@@ -1176,7 +1303,13 @@ with st.form("add_new_expression", clear_on_submit=True):
                 st.session_state.custom_pica_dict = current_custom
 
             st.session_state.translation_result = None
-            st.success(f'"{new_pika}" → "{new_meaning}" 임시 등록 완료')
+            saved, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
+            
+            if saved:
+                st.success(f'"{new_pika}" → "{new_meaning}" 등록 완료. GitHub에 자동 저장됐습니다.')
+            else:
+                st.warning(f'"{new_pika}" → "{new_meaning}" 임시 등록 완료. GitHub 저장은 실패했습니다.')
+                st.caption(message)
 
 
 if st.session_state.custom_pica_dict:
