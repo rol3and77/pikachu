@@ -220,6 +220,13 @@ st.markdown(
         line-height: 1.7;
         margin-bottom: 1.2rem;
     }
+    .result-panel {
+        min-height: 220px;
+        background: #fffdf3;
+        border: 2px dashed #ead17d;
+        border-radius: 18px;
+        padding: 1rem;
+    }
     .result-card {
         background: #fff5bf;
         border: 1px solid #efd56f;
@@ -274,29 +281,9 @@ with left_col:
         horizontal=True,
     )
 
-    examples = {
-        "피카츄어 → 한국어": [
-            "피캇츄~! 피카피 피카!",
-            "피카! 피카피",
-            "피이카-피카! 피이카츄우우우우우",
-            "피~카~?",
-            "츄우-핏카!",
-        ],
-        "한국어 → 피카츄어": [
-            "안녕 한지우 알았어",
-            "전투 준비 완료 10만볼트",
-            "아니 싫어",
-            "아이언테일",
-            "난 피카츄",
-        ],
-    }
-
-    selected_example = st.selectbox("예시 선택", ["직접 입력"] + examples[mode])
-    default_text = "" if selected_example == "직접 입력" else selected_example
-
     user_input = st.text_area(
         "번역할 문장",
-        value=default_text,
+        value="",
         height=220,
         placeholder="예: 피캇츄~! 피카피 피카!" if mode == "피카츄어 → 한국어" else "예: 안녕 한지우 알았어",
     )
@@ -305,6 +292,8 @@ with left_col:
 
 with right_col:
     st.subheader("해석 결과")
+
+    st.markdown('<div class="result-panel">', unsafe_allow_html=True)
 
     if not translate_clicked:
         st.info("왼쪽에 문장을 입력하고 번역하기를 눌러주세요.")
@@ -353,6 +342,8 @@ with right_col:
                 """,
                 unsafe_allow_html=True,
             )
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 with st.expander("등록된 피카츄어 사전 보기"):
