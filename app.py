@@ -771,9 +771,21 @@ with st.form("add_new_expression", clear_on_submit=True):
             st.success(f'"{new_pika}" → "{new_meaning}" 임시 등록 완료')
 
 if st.session_state.custom_pica_dict:
-    with st.expander("내가 새로 등록한 표현 보기", expanded=False):
-        for pika, meanings in st.session_state.custom_pica_dict.items():
-            st.write(f"**{pika}** → {', '.join(meanings)}")
+    with st.expander("내가 새로 등록한 표현 보기 / 삭제", expanded=False):
+        delete_target = None
+        for index, (pika, meanings) in enumerate(list(st.session_state.custom_pica_dict.items())):
+            row_left, row_right = st.columns([4, 1])
+            with row_left:
+                st.write(f"**{pika}** → {', '.join(meanings)}")
+            with row_right:
+                if st.button("삭제", key=f"delete_custom_{index}", use_container_width=True):
+                    delete_target = pika
+
+        if delete_target:
+            del st.session_state.custom_pica_dict[delete_target]
+            st.session_state.translation_result = None
+            st.success(f'"{delete_target}" 표현을 삭제했습니다.')
+            st.rerun()
 
     custom_json = json.dumps(
         st.session_state.custom_pica_dict,
