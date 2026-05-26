@@ -599,9 +599,45 @@ def learn_generated_translation(korean_text: str, pika_text: str):
     st.session_state.custom_pica_dict = custom
 
 
+def clean_learned_meaning(korean_meaning: str) -> str:
+    meaning = normalize_text(korean_meaning)
+
+    # 추정 과정에서 나온 설명문을 사전에 그대로 저장하지 않기 위한 정리 규칙.
+    meaning = meaning.replace("계열일 가능성", "")
+    meaning = meaning.replace("가능성이 큼", "")
+    meaning = meaning.replace("가능성이 있습니다", "")
+    meaning = meaning.replace("표현으로 해석할 수 있음", "표현")
+    meaning = meaning.replace("또는", "/")
+    meaning = meaning.replace("  ", " ").strip(" ,./")
+
+    # 너무 긴 설명문은 짧은 자연어 뜻으로 압축.
+    if any(token in meaning for token in ["전기 기술", "공격", "에너지"]):
+        return "전기 기술 표현"
+    if any(token in meaning for token in ["질문", "되묻", "의문"]):
+        return "되묻는 말"
+    if any(token in meaning for token in ["확인"]):
+        return "확인하는 말"
+    if any(token in meaning for token in ["기분 좋은", "부드럽", "감정", "기쁨", "신남"]):
+        return "기분 좋은 감정 표현"
+    if any(token in meaning for token in ["강한 외침", "전투", "기술명"]):
+        return "전투 중 외침"
+    if any(token in meaning for token in ["망설임", "조심", "미안"]):
+        return "조심스러운 감정 표현"
+    if any(token in meaning for token in ["짧은 호칭", "호칭", "대상 지칭", "이름"]):
+        return "대상을 부르는 말"
+    if any(token in meaning for token in ["부정", "거절", "싫"]):
+        return "싫거나 거절하는 말"
+    if any(token in meaning for token in ["긍정", "대답", "응답"]):
+        return "긍정하는 말"
+
+    if len(meaning) > 18:
+        return "새로운 피카츄어 표현"
+    return meaning if meaning else "새로운 피카츄어 표현"
+
+
 def learn_unknown_pika_expression(pika_text: str, korean_meaning: str):
     pika_text = normalize_text(pika_text)
-    korean_meaning = normalize_text(korean_meaning)
+    korean_meaning = clean_learned_meaning(korean_meaning)
 
     if not pika_text or not korean_meaning:
         return False
@@ -776,8 +812,20 @@ with left:
         st.rerun()
 
 with right:
-    st.subheader("해석 결과")
     saved = st.session_state.translation_result
+    if saved and saved.get("status") == "ok":
+        mode_label = saved.get("mode", "")
+        st.markdown(
+            f"""
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:0.4rem;">
+                <h2 style="margin:0; font-size:1.75rem; font-weight:800;">해석 결과</h2>
+                <span style="color:#75684f; font-size:0.95rem; white-space:nowrap;">감지된 번역 방향: {mode_label}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.subheader("해석 결과")
 
     if saved is None:
         st.markdown('<div class="result-panel">왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.</div>', unsafe_allow_html=True)
@@ -787,7 +835,6 @@ with right:
         mode = saved.get("mode", "")
         sentence = saved.get("sentence", "")
         matches = saved.get("matches", [])
-        st.caption(f"감지된 번역 방향: {mode}")
         if saved.get("learned"):
             st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다. 이제 반대로 입력해도 한국어 뜻으로 해석할 수 있어요.")
         if saved.get("learned_pika"):
