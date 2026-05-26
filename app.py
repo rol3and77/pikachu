@@ -6,6 +6,7 @@ from difflib import SequenceMatcher
 import requests
 import streamlit as st
 
+
 st.set_page_config(
     page_title="피카츄어 번역기",
     page_icon="⚡",
@@ -66,15 +67,32 @@ PICA_DICT = {
 
 
 # =========================================================
-# 세션 상태
-# =========================================================
-
-
-
-
-# =========================================================
 # 기본 유틸
 # =========================================================
+
+def normalize_text(text: str) -> str:
+    text = str(text)
+    text = text.replace("！", "!").replace("？", "?").replace("，", ",")
+    return " ".join(text.split()).strip()
+
+
+def clean_korean(text: str) -> str:
+    text = normalize_text(text)
+    for char in ["!", "?", ".", "~", ",", "'", '"']:
+        text = text.replace(char, "")
+    return " ".join(text.split()).strip()
+
+
+def normalize_meaning_key(text: str) -> str:
+    text = clean_korean(text)
+    text = text.replace(" ", "")
+    return text.strip()
+
+
+# =========================================================
+# GitHub 자동 저장 / 불러오기
+# =========================================================
+
 def github_config_ready() -> bool:
     required_keys = [
         "github_token",
@@ -99,6 +117,35 @@ def get_github_file_url() -> str:
     return f"https://api.github.com/repos/{repo}/contents/{path}"
 
 
+def clean_custom_dict(data: dict) -> dict[str, list[str]]:
+    cleaned = {}
+
+    if not isinstance(data, dict):
+        return cleaned
+
+    for pika, meanings in data.items():
+        pika = normalize_text(str(pika))
+
+        if isinstance(meanings, str):
+            meanings = [meanings]
+
+        if not isinstance(meanings, list):
+            continue
+
+        cleaned[pika] = []
+
+        for meaning in meanings:
+            meaning = normalize_text(str(meaning))
+
+            if meaning and meaning not in cleaned[pika]:
+                cleaned[pika].append(meaning)
+
+        if not cleaned[pika]:
+            del cleaned[pika]
+
+    return cleaned
+
+
 def load_custom_dict_from_github() -> dict[str, list[str]]:
     if not github_config_ready():
         return {}
@@ -118,29 +165,7 @@ def load_custom_dict_from_github() -> dict[str, list[str]]:
         content = base64.b64decode(data["content"]).decode("utf-8")
         parsed = json.loads(content)
 
-        if not isinstance(parsed, dict):
-            return {}
-
-        cleaned = {}
-        for pika, meanings in parsed.items():
-            pika = normalize_text(str(pika))
-
-            if isinstance(meanings, str):
-                meanings = [meanings]
-
-            if not isinstance(meanings, list):
-                continue
-
-            cleaned[pika] = []
-            for meaning in meanings:
-                meaning = normalize_text(str(meaning))
-                if meaning and meaning not in cleaned[pika]:
-                    cleaned[pika].append(meaning)
-
-            if not cleaned[pika]:
-                del cleaned[pika]
-
-        return cleaned
+        return clean_custom_dict(parsed)
 
     except Exception:
         return {}
@@ -199,7 +224,12 @@ def save_custom_dict_to_github(custom_dict: dict[str, list[str]]) -> tuple[bool,
 
     except Exception as error:
         return False, str(error)
-        
+
+
+# =========================================================
+# 세션 상태
+# =========================================================
+
 if "custom_pica_dict" not in st.session_state:
     st.session_state.custom_pica_dict = load_custom_dict_from_github()
 
@@ -209,28 +239,27 @@ if "translation_result" not in st.session_state:
 if "example_text" not in st.session_state:
     st.session_state.example_text = ""
 
-def normalize_text(text: str) -> str:
-    text = str(text)
-    text = text.replace("！", "!").replace("？", "?").replace("，", ",")
-    return " ".join(text.split()).strip()
 
-
-def clean_korean(text: str) -> str:
-    text = normalize_text(text)
-    for char in ["!", "?", ".", "~", ",", "'", '"']:
-        text = text.replace(char, "")
-    return " ".join(text.split()).strip()
-
+# =========================================================
+# 사전 관련
+# =========================================================
 
 def get_current_dict() -> dict[str, list[str]]:
     merged = {key: value[:] for key, value in PICA_DICT.items()}
+
     for key, value in st.session_state.custom_pica_dict.items():
-        merged[key] = value[:]
+        if key in merged:
+            for meaning in value:
+                if meaning not in merged[key]:
+                    merged[key].append(meaning)
+        else:
+            merged[key] = value[:]
+
     return merged
 
 
 def get_aliases(meaning: str) -> list[str]:
-    aliases = [meaning, clean_korean(meaning)]
+    aliases = [meaning, clean_korean(meaning), normalize_meaning_key(meaning)]
 
     if "한지우" in meaning:
         aliases += ["지우", "사토시", "한지우"]
@@ -259,9 +288,20 @@ def get_current_reverse_dict() -> dict[str, list[str]]:
     for pika, meanings in current.items():
         for meaning in meanings:
             for alias in get_aliases(meaning):
-                reverse.setdefault(alias, [])
-                if pika not in reverse[alias]:
-                    reverse[alias].append(pika)
+                keys = {
+                    alias,
+                    clean_korean(alias),
+                    normalize_meaning_key(alias),
+                }
+
+                for key in keys:
+                    if not key:
+                        continue
+
+                    reverse.setdefault(key, [])
+
+                    if pika not in reverse[key]:
+                        reverse[key].append(pika)
 
     return reverse
 
@@ -280,6 +320,53 @@ def make_match(
         "estimates": estimates or [],
         "reasons": reasons or [],
     }
+
+
+def meaning_usage_hint(meaning: str) -> str:
+    text = str(meaning)
+
+    if any(token in text for token in ["안녕", "인사"]):
+        return "인사하거나 처음 만났을 때"
+    if any(token in text for token in ["작별", "잘가"]):
+        return "헤어질 때"
+    if any(token in text for token in ["미안", "사과"]):
+        return "사과할 때"
+    if any(token in text for token in ["괜찮아", "확인"]):
+        return "상대 상태를 확인할 때"
+    if any(token in text for token in ["응", "알았어", "맞아", "긍정"]):
+        return "동의하거나 대답할 때"
+    if any(token in text for token in ["아니", "싫어", "거절", "부정"]):
+        return "거절하거나 부정할 때"
+    if any(token in text for token in ["뭐라고", "질문", "?"]):
+        return "되묻거나 질문할 때"
+
+    if any(token in text for token in ["10만볼트", "번개", "아이언테일", "볼트태클", "일렉트릭", "스파킹", "울트라", "기술", "전투"]):
+        return "전투 중 기술을 쓰거나 공격할 때"
+
+    if any(token in text for token in ["기분 좋", "신난", "행복", "기쁨"]):
+        return "기분이 좋거나 신날 때"
+    if any(token in text for token in ["피곤", "지친", "힘든", "우울", "슬픔"]):
+        return "피곤하거나 감정이 처졌을 때"
+    if any(token in text for token in ["과제", "시험", "수업", "학교", "학점", "팀플"]):
+        return "학교생활이나 대학생 상황에서"
+    if any(token in text for token in ["종강", "방학", "해방", "탈출"]):
+        return "끝나길 바라거나 해방감을 표현할 때"
+
+    people = ["한지우", "사토시", "최이슬", "웅이", "봄이", "나빛나", "세레나", "시트론", "로켓단", "로사", "로이", "나옹"]
+    if any(person in text for person in people):
+        return "특정 인물을 부를 때"
+
+    pokemon = [
+        "토게피", "이상해씨", "꼬부기", "파이리", "라프라스", "리자몽", "치코리타",
+        "잉어킹", "브케인", "고라파덕", "버터플", "푸호꼬", "팽도리", "코코"
+    ]
+    if any(name in text for name in pokemon):
+        return "특정 포켓몬을 부를 때"
+
+    if "등록된 표현 없음" in text or "등록된 뜻 없음" in text:
+        return "아직 사전에 정확히 등록되지 않은 표현"
+
+    return "문맥에 따라 사용"
 
 
 # =========================================================
@@ -577,70 +664,68 @@ def pick_pika_expression(intent: str, text: str) -> str:
 
     table = {
         "positive": {
-            "short": ["피카!", "챠아~!", "피!"],
-            "medium": ["챠아~!", "피카츄~!", "피카피카~!"],
-            "long": ["피카카~ 피카츄~!", "챠아~! 피카피카~!", "피이카아~ 피카츄~!"],
+            "short": ["피카!"],
+            "medium": ["챠아~!"],
+            "long": ["피카카~ 피카츄~!"],
         },
         "negative": {
-            "short": ["츄-", "핏...", "카-"],
-            "medium": ["츄-", "피-카...", "핏카..."],
-            "long": ["피-카... 츄우...", "츄- 피카아...", "핏... 피-카츄..."],
+            "short": ["츄-"],
+            "medium": ["피-카..."],
+            "long": ["피-카... 츄우..."],
         },
         "tired": {
-            "short": ["핏...", "츄...", "피-"],
-            "medium": ["피-카츄...", "핏... 츄...", "피카아..."],
-            "long": ["피-카... 츄우...", "피카아... 츄우우...", "핏... 피-카츄..."],
+            "short": ["핏..."],
+            "medium": ["피-카츄..."],
+            "long": ["피-카... 츄우..."],
         },
         "wish": {
-            "short": ["피카~", "츄우...", "피카츄~"],
-            "medium": ["피카츄~!", "피카아~ 츄...", "피카피~ 츄우..."],
-            "long": ["피카아~ 츄우...", "피이카아~ 피카츄우...", "피카피카~ 츄우우..."],
+            "short": ["피카~"],
+            "medium": ["피카아~ 츄..."],
+            "long": ["피카아~ 츄우..."],
         },
         "escape": {
-            "short": ["츄우...", "피카아...", "핏츄..."],
-            "medium": ["피카아... 츄우우...", "핏카... 츄우...", "피-카... 츄우..."],
-            "long": ["피이카아... 츄우우우...", "피카아... 피-카... 츄우우...", "핏카아... 츄우우..."],
+            "short": ["츄우..."],
+            "medium": ["피카아... 츄우우..."],
+            "long": ["피이카아... 츄우우우..."],
         },
         "question": {
-            "short": ["피카?", "츄?", "카?"],
-            "medium": ["피~카~?", "피카츄?", "핏카~?"],
-            "long": ["피~카~츄~?", "피카아~ 츄우?", "핏카... 피카?"],
+            "short": ["피카?"],
+            "medium": ["피~카~?"],
+            "long": ["피~카~츄~?"],
         },
         "sorry": {
-            "short": ["피-", "피-카", "츄..."],
-            "medium": ["피-카츄", "피-카...", "핏카..."],
-            "long": ["피-카... 츄...", "피-카츄... 피카...", "핏... 피-카츄..."],
+            "short": ["피-"],
+            "medium": ["피-카츄"],
+            "long": ["피-카... 츄..."],
         },
         "yes": {
-            "short": ["피카!", "피!", "카!"],
-            "medium": ["피카!", "피카츄!", "피카피!"],
-            "long": ["피카! 피카츄!", "피카피! 피카!", "피카카! 피카츄!"],
+            "short": ["피!"],
+            "medium": ["피카!"],
+            "long": ["피카! 피카츄!"],
         },
         "battle": {
-            "short": ["핏카!", "피카!!", "츄핏!"],
-            "medium": ["피이카-피카!", "츄우-핏카!", "피카카!!"],
-            "long": ["피이카아!! 츄우우!!", "피카카카!! 츄핏-카!", "피카!! 피카츄우!!"],
+            "short": ["핏카!"],
+            "medium": ["피이카-피카!"],
+            "long": ["피이카아!! 츄우우!!"],
         },
         "food": {
-            "short": ["피카?", "츄우~", "피!"],
-            "medium": ["피카츄~ 피카!", "피카피~ 츄!", "챠아~ 피카!"],
-            "long": ["피카피카~ 츄우~ 피카!", "피카아~ 피카츄~!", "챠아~ 피카피카~!"],
+            "short": ["피카?"],
+            "medium": ["피카츄~ 피카!"],
+            "long": ["피카피카~ 츄우~ 피카!"],
         },
         "school": {
-            "short": ["피카...", "핏...", "카..."],
-            "medium": ["피카아... 피-카츄...", "핏카... 피카...", "피카피... 츄..."],
-            "long": ["피카아... 피-카츄... 츄우...", "핏카... 피카아... 츄우...", "피카피카... 피-카... 츄..."],
+            "short": ["피카..."],
+            "medium": ["피카아... 피-카츄..."],
+            "long": ["피카아... 피-카츄... 츄우..."],
         },
         "default": {
-            "short": ["피카?", "피!", "츄?"],
-            "medium": ["피카피카~", "핏카츄~", "피카츄~"],
-            "long": ["피카피카츄~!", "핏카츄~ 피카!", "피이카아~ 피카츄~!"],
+            "short": ["피카?"],
+            "medium": ["핏카츄~"],
+            "long": ["핏카츄~ 피카!"],
         },
     }
 
-    choices = table.get(intent, table["default"])[level]
-    index = sum(ord(ch) for ch in compact) % len(choices)
-    result = choices[index]
+    result = table.get(intent, table["default"])[level][0]
 
     if intense and level != "short":
         if "!" in result:
@@ -787,20 +872,22 @@ def find_pika_to_korean(text: str) -> list[dict]:
 
 
 def find_korean_to_pika(text: str) -> list[dict]:
+    raw_text = normalize_text(text)
     text = clean_korean(text)
+    meaning_key = normalize_meaning_key(text)
     reverse_dict = get_current_reverse_dict()
 
     if not text:
         return []
 
-    if text in reverse_dict:
+    if meaning_key in reverse_dict:
         return [
             make_match(
                 text,
-                reverse_dict[text],
+                reverse_dict[meaning_key],
                 "정확히 일치",
                 ["등록된 한국어 뜻과 정확히 일치"],
-                [f'한국어 뜻 "{text}"가 사전에 등록되어 있습니다.'],
+                [f'한국어 뜻 "{raw_text}"가 사전에 등록되어 있어 기존 피카츄어 표현을 우선 사용했습니다.'],
             )
         ]
 
@@ -808,21 +895,24 @@ def find_korean_to_pika(text: str) -> list[dict]:
     used = set()
 
     for word in [part.strip() for part in text.split() if part.strip()]:
-        if word in reverse_dict:
+        word_key = normalize_meaning_key(word)
+
+        if word_key in reverse_dict:
             matches.append(
                 make_match(
                     word,
-                    reverse_dict[word],
+                    reverse_dict[word_key],
                     "정확히 일치",
                     ["등록된 한국어 뜻과 정확히 일치"],
-                    [f'한국어 뜻 "{word}"가 사전에 등록되어 있습니다.'],
+                    [f'한국어 뜻 "{word}"가 사전에 등록되어 있어 기존 피카츄어 표현을 우선 사용했습니다.'],
                 )
             )
-            used.add(word)
+            used.add(word_key)
 
     for key in sorted(reverse_dict.keys(), key=len, reverse=True):
-        cleaned_key = clean_korean(key)
-        if cleaned_key and cleaned_key not in used and cleaned_key in text:
+        cleaned_key = normalize_meaning_key(key)
+
+        if cleaned_key and cleaned_key not in used and cleaned_key in meaning_key:
             matches.append(
                 make_match(
                     key,
@@ -911,6 +1001,10 @@ def translate_safely(text: str, auto_mode: bool, manual_mode: str) -> tuple[str,
     return "피카츄어 → 한국어", pika_matches
 
 
+# =========================================================
+# 학습 / 대표 해석
+# =========================================================
+
 def clean_learned_meaning(korean_meaning: str) -> str:
     meaning = normalize_text(korean_meaning)
 
@@ -946,24 +1040,27 @@ def clean_learned_meaning(korean_meaning: str) -> str:
     return meaning if meaning else "새로운 피카츄어 표현"
 
 
-def learn_generated_translation(korean_text: str, pika_text: str):
+def learn_generated_translation(korean_text: str, pika_text: str) -> bool:
     pika_text = normalize_text(pika_text)
     korean_text = normalize_text(korean_text)
 
     if not pika_text or not korean_text:
-        return
+        return False
 
     current_dict = get_current_dict()
     if pika_text in current_dict:
-        return
+        return False
 
     custom = st.session_state.get("custom_pica_dict", {})
     custom.setdefault(pika_text, [])
 
     if korean_text not in custom[pika_text]:
         custom[pika_text].append(korean_text)
+        st.session_state.custom_pica_dict = custom
+        return True
 
     st.session_state.custom_pica_dict = custom
+    return False
 
 
 def learn_unknown_pika_expression(pika_text: str, korean_meaning: str) -> bool:
@@ -1010,11 +1107,17 @@ def representative_sentence(matches: list[dict], mode: str) -> str:
 
     for match in matches:
         meanings = match.get("meanings", [])
+        estimates = match.get("estimates", [])
 
-        if meanings and meanings[0] not in ["등록된 뜻 없음", "등록된 표현 없음"]:
-            pieces.append(meanings[0])
-        elif match.get("estimates"):
-            pieces.append(match["estimates"][0])
+        valid_meanings = [
+            meaning for meaning in meanings
+            if meaning not in ["등록된 뜻 없음", "등록된 표현 없음"]
+        ]
+
+        if valid_meanings:
+            pieces.append(" / ".join(valid_meanings))
+        elif estimates:
+            pieces.append(" / ".join(estimates[:3]))
 
     if not pieces:
         return ""
@@ -1022,28 +1125,7 @@ def representative_sentence(matches: list[dict], mode: str) -> str:
     if len(pieces) == 1:
         return pieces[0]
 
-    if mode == "한국어 → 피카츄어":
-        return " ".join(pieces)
-
-    sentence = pieces[0]
-
-    for word in pieces[1:]:
-        word = str(word).strip()
-
-        if any(token in word for token in ["응", "알았어", "맞아"]):
-            sentence += ", 알았어!"
-        elif any(token in word for token in ["아니", "싫어"]):
-            sentence += ", 아니야."
-        elif "미안" in word:
-            sentence += ", 미안해."
-        elif "괜찮아" in word:
-            sentence += ", 괜찮아?"
-        elif any(token in word for token in ["10만볼트", "번개", "아이언테일", "볼트태클", "일렉트릭", "스파킹", "울트라"]):
-            sentence += f", {word}!"
-        else:
-            sentence += f" {word}"
-
-    return sentence
+    return " ".join(pieces)
 
 
 def search_dictionary(query: str) -> list[tuple[str, list[str]]]:
@@ -1064,10 +1146,26 @@ def search_dictionary(query: str) -> list[tuple[str, list[str]]]:
 
 def render_match_card(match: dict):
     st.markdown(f"**{match['phrase']}** · {match['type']}")
-    st.write("등록된 뜻:", ", ".join(match.get("meanings", [])))
+
+    meanings = match.get("meanings", [])
+    valid_meanings = [
+        meaning for meaning in meanings
+        if meaning not in ["등록된 뜻 없음", "등록된 표현 없음"]
+    ]
+
+    if valid_meanings:
+        st.write("등록된 뜻:")
+        for meaning in valid_meanings:
+            usage = meaning_usage_hint(meaning)
+            st.markdown(f"- **{meaning}**  \n  사용 상황: {usage}")
+    else:
+        st.write("등록된 뜻:", ", ".join(meanings))
 
     if match.get("estimates"):
-        st.write("추정 해석:", ", ".join(match["estimates"]))
+        st.write("추정 해석:")
+        for estimate in match["estimates"]:
+            usage = meaning_usage_hint(estimate)
+            st.markdown(f"- **{estimate}**  \n  사용 상황: {usage}")
 
     if match.get("reasons"):
         with st.expander("왜 그렇게 추정했는지 보기", expanded=False):
@@ -1144,6 +1242,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+if not github_config_ready():
+    st.info("GitHub 자동 저장 설정이 없으면 새 표현은 현재 세션에만 저장됩니다. 아래 백업 기능으로 JSON을 저장할 수 있습니다.")
+
 auto_mode = st.toggle("언어 자동 감지", value=True)
 
 manual_mode = "피카츄어 → 한국어"
@@ -1185,12 +1286,11 @@ with left:
             if mode == "한국어 → 피카츄어" and sentence:
                 current_dict = get_current_dict()
                 if sentence not in current_dict:
-                    learn_generated_translation(user_input, sentence)
-                    learned = True
+                    learned = learn_generated_translation(user_input, sentence)
 
             if mode == "피카츄어 → 한국어" and sentence and is_new_pika_expression(user_input, matches):
                 learned_pika = learn_unknown_pika_expression(user_input, sentence)
-                
+
             if learned or learned_pika:
                 save_custom_dict_to_github(st.session_state.custom_pica_dict)
 
@@ -1238,9 +1338,9 @@ with right:
         matches = saved.get("matches", [])
 
         if saved.get("learned"):
-            st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다. 이제 반대로 입력해도 한국어 뜻으로 해석할 수 있어요.")
+            st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
         if saved.get("learned_pika"):
-            st.success("새로운 피카츄어 표현을 추정 해석과 함께 임시 사전에 포함했습니다. 다음부터는 등록된 표현처럼 사용할 수 있어요.")
+            st.success("새로운 피카츄어 표현을 추정 해석과 함께 임시 사전에 포함했습니다.")
 
         st.markdown(
             f"""
@@ -1270,7 +1370,7 @@ with right:
 st.divider()
 
 st.subheader("새 피카츄어 표현 등록")
-st.caption("새 표현은 현재 앱 세션에 임시 저장됩니다. 필요한 표현을 등록한 뒤 맨 아래에서 JSON으로 백업할 수 있습니다.")
+st.caption("새 표현은 현재 사전에 추가됩니다. GitHub 설정이 되어 있으면 자동 저장됩니다.")
 
 with st.form("add_new_expression", clear_on_submit=True):
     form_col1, form_col2 = st.columns([1, 1], gap="medium")
@@ -1291,22 +1391,16 @@ with st.form("add_new_expression", clear_on_submit=True):
             st.warning("피카츄어와 뜻을 모두 입력해주세요.")
         else:
             current_custom = st.session_state.custom_pica_dict
+            current_custom.setdefault(new_pika, [])
 
-            if new_pika in PICA_DICT:
-                base_meanings = PICA_DICT[new_pika][:]
-                if new_meaning not in base_meanings:
-                    st.session_state.custom_pica_dict[new_pika] = base_meanings + [new_meaning]
-                else:
-                    st.session_state.custom_pica_dict[new_pika] = base_meanings
-            else:
-                current_custom.setdefault(new_pika, [])
-                if new_meaning not in current_custom[new_pika]:
-                    current_custom[new_pika].append(new_meaning)
-                st.session_state.custom_pica_dict = current_custom
+            if new_meaning not in current_custom[new_pika]:
+                current_custom[new_pika].append(new_meaning)
 
+            st.session_state.custom_pica_dict = current_custom
             st.session_state.translation_result = None
+
             saved, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
-            
+
             if saved:
                 st.success(f'"{new_pika}" → "{new_meaning}" 등록 완료. GitHub에 자동 저장됐습니다.')
             else:
@@ -1331,17 +1425,15 @@ if st.session_state.custom_pica_dict:
         if delete_target:
             del st.session_state.custom_pica_dict[delete_target]
             st.session_state.translation_result = None
-        
-            saved, message = save_custom_dict_to_github(
-                st.session_state.custom_pica_dict
-            )
-        
+
+            saved, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
+
             if saved:
                 st.success(f'"{delete_target}" 표현을 삭제했고, GitHub에도 반영했습니다.')
             else:
                 st.warning(f'"{delete_target}" 표현은 현재 세션에서 삭제됐지만, GitHub 저장은 실패했습니다.')
                 st.caption(message)
-        
+
             st.rerun()
 else:
     st.info("아직 새로 등록한 표현이 없습니다.")
@@ -1443,7 +1535,13 @@ with st.expander("백업 / 복원", expanded=False):
                     st.session_state.translation_result = None
 
                     if restored_count > 0:
-                        st.success(f"JSON에서 새 표현 {restored_count}개를 복원했습니다.")
+                        saved, message = save_custom_dict_to_github(st.session_state.custom_pica_dict)
+
+                        if saved:
+                            st.success(f"JSON에서 새 표현 {restored_count}개를 복원했고, GitHub에도 저장했습니다.")
+                        else:
+                            st.warning(f"JSON에서 새 표현 {restored_count}개를 복원했습니다. GitHub 저장은 실패했습니다.")
+                            st.caption(message)
                     else:
                         st.info("새로 추가할 표현이 없습니다. 이미 등록된 내용일 수 있습니다.")
 
