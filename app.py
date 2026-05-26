@@ -136,14 +136,35 @@ def guess_pika_meaning(word: str) -> list[str]:
 
 def guess_by_similarity(word: str) -> list[str]:
     guesses = []
-    candidates = get_close_matches(word, PICA_DICT.keys(), n=3, cutoff=0.55)
+    scored = []
 
-    for candidate in candidates:
-        if candidate == word:
-            continue
+    for candidate in PICA_DICT.keys():
         score = SequenceMatcher(None, word, candidate).ratio()
+
+        if word in candidate or candidate in word:
+            score += 0.18
+        if word.replace("!", "").replace("?", "") in candidate.replace("!", "").replace("?", ""):
+            score += 0.08
+        if "우우" in word and "우우" in candidate:
+            score += 0.12
+        if "피이카" in word and "피이카" in candidate:
+            score += 0.08
+        if "츄우" in word and "츄우" in candidate:
+            score += 0.08
+
+        scored.append((min(score, 1.0), candidate))
+
+    scored.sort(reverse=True)
+    candidates = [(score, candidate) for score, candidate in scored if score >= 0.48 and candidate != word][:3]
+
+    for score, candidate in candidates:
         meaning = ", ".join(PICA_DICT[candidate])
-        guesses.append(f'등록 표현 "{candidate}"와 비슷함: {meaning} 계열일 가능성 있음 / 유사도 {score:.2f}')
+        if score >= 0.78:
+            guesses.append(f'등록 표현 "{candidate}"와 매우 비슷함 → {meaning} 쪽 의미일 가능성이 큼')
+        elif score >= 0.62:
+            guesses.append(f'등록 표현 "{candidate}"와 비슷함 → {meaning} 계열일 가능성 있음')
+        else:
+            guesses.append(f'등록 표현 "{candidate}"와 약간 비슷함 → {meaning}와 관련 있을 수 있음')
 
     return guesses
 
@@ -236,11 +257,19 @@ def find_korean_to_pika(text: str) -> list[dict]:
 
 
 def make_sentence(matches: list[dict], mode: str) -> str:
-    valid = [m for m in matches if m["type"] != "추정"]
-    if len(valid) < 2:
+    valid = [m for m in matches if m.get("meanings")]
+    if not valid:
         return ""
 
-    pieces = [m["meanings"][0] for m in valid if m.get("meanings")]
+    pieces = []
+    for match in valid:
+        first = match["meanings"][0]
+        if first == "등록된 뜻 없음" and match.get("estimates"):
+            first = match["estimates"][0]
+        pieces.append(first)
+
+    if len(pieces) == 1:
+        return pieces[0]
 
     if mode == "한국어 → 피카츄어":
         return " ".join(pieces)
@@ -410,7 +439,7 @@ with output_col:
                 f"""
                 <div class="result-panel">
                     <div class="sentence-card">
-                        <div class="small-label">문장으로 연결한 해석</div>
+                        <div class="small-label">대표 해석</div>
                         <div class="phrase">{sentence}</div>
                     </div>
                 </div>
@@ -421,7 +450,7 @@ with output_col:
             st.markdown(
                 """
                 <div class="result-panel">
-                    <div class="empty">단어가 2개 이상 해석되면 자연스럽게 연결한 문장이 여기에 표시됩니다.</div>
+                    <div class="empty">해석 가능한 결과가 있으면 여기에 대표 해석이 표시됩니다.</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
