@@ -1198,7 +1198,7 @@ st.markdown(
         border-radius: 999px !important;
         font-weight: 900 !important;
         height: 3rem !important;
-        box-shadow: 0 8px 18px rgba(255, 196, 0, 0.28);
+        box-shadow: 0 8px 18px rgba(255, 196, 0, 0.24);
     }
     div.stButton > button {
         border-radius: 999px !important;
@@ -1208,6 +1208,35 @@ st.markdown(
         border-radius: 18px !important;
         border-color: #ead784 !important;
         background: #fffefa !important;
+    }
+    .panel-divider {
+    height: 1px;
+    background: #f0e2a8;
+    margin: 0.85rem 0 1.1rem 0;
+    }
+    
+    .panel-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.55rem;
+    }
+    
+    .panel-title {
+        font-size: 1.05rem;
+        font-weight: 900;
+        color: #4a3900;
+    }
+    
+    .panel-subtitle {
+        font-size: 0.82rem;
+        font-weight: 800;
+        color: #b09b45;
+    }
+    
+    .bottom-button-area {
+        padding-top: 1.05rem;
+        padding-bottom: 0.4rem;
     }
     </style>
     """,
@@ -1235,17 +1264,23 @@ if not github_config_ready():
 with st.container():
     st.markdown('<div class="translator-shell">', unsafe_allow_html=True)
 
-    top_col1, top_col2, top_col3 = st.columns([1.2, 1, 1.2])
+    control_left, control_center, control_right = st.columns([1.2, 1, 1.2])
 
-    with top_col1:
-        st.markdown('<span class="lang-pill">입력</span>', unsafe_allow_html=True)
-
-    with top_col2:
+    with control_left:
         auto_mode = st.toggle("언어 자동 감지", value=True)
 
-    with top_col3:
+    with control_center:
+        st.markdown(
+            '<div style="text-align:center; padding-top:0.35rem; font-weight:900; color:#5c4800;">⚡ 번역 방향</div>',
+            unsafe_allow_html=True,
+        )
+
+    with control_right:
         if auto_mode:
-            st.markdown('<div style="text-align:right;"><span class="lang-pill">자동 감지</span></div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div style="text-align:right; padding-top:0.25rem;"><span class="lang-pill">자동 감지</span></div>',
+                unsafe_allow_html=True,
+            )
             manual_mode = "피카츄어 → 한국어"
         else:
             manual_mode = st.radio(
@@ -1255,120 +1290,60 @@ with st.container():
                 label_visibility="collapsed",
             )
 
+    st.markdown('<div class="panel-divider"></div>', unsafe_allow_html=True)
+
     left, right = st.columns([1, 1], gap="large")
 
     with left:
-        st.markdown('<div class="card-title">번역할 언어</div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="panel-title-row">
+                <span class="panel-title">번역할 언어</span>
+                <span class="panel-subtitle">Input</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         user_input = st.text_area(
             "입력",
             value=st.session_state.example_text,
-            height=280,
+            height=320,
             placeholder="예: 피캇츄~! 피카피 피카! 또는 종강하고싶다",
             label_visibility="collapsed",
         )
 
-        btn_col1, btn_col2 = st.columns([2.4, 1])
-
-        with btn_col1:
-            translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
-
-        with btn_col2:
-            random_clicked = st.button("예문", use_container_width=True)
-
-        if translate_clicked:
-            st.session_state.show_all_results = False
-
-            if not user_input.strip():
-                st.session_state.translation_result = {
-                    "status": "empty",
-                    "message": "번역할 문장을 입력해주세요.",
-                }
-            else:
-                mode, matches = translate_safely(user_input, auto_mode, manual_mode)
-                sentence = representative_sentence(matches, mode)
-
-                learned = False
-                if mode == "한국어 → 피카츄어" and sentence:
-                    current_dict = get_current_dict()
-                    if sentence not in current_dict:
-                        learned = learn_generated_translation(user_input, sentence)
-
-                if learned:
-                    save_custom_dict_to_github(st.session_state.custom_pica_dict)
-
-                st.session_state.translation_result = {
-                    "status": "ok",
-                    "mode": mode,
-                    "sentence": sentence,
-                    "matches": matches,
-                    "learned": learned,
-                }
-
-        if random_clicked:
-            st.session_state.example_text = random.choice([
-                "피캇츄~! 피카피 피카!",
-                "피이카-피카! 피이카츄우우우우우",
-                "피~카~?",
-                "종강하고싶다",
-                "과제하기싫고 집가고싶다",
-                "전투 준비 완료 10만볼트",
-            ])
-            st.session_state.translation_result = None
-            st.session_state.show_all_results = False
-            st.rerun()
-
     with right:
+        st.markdown(
+            """
+            <div class="panel-title-row">
+                <span class="panel-title">해석 결과</span>
+                <span class="panel-subtitle">Result</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         saved = st.session_state.translation_result
 
-        if saved is None:
-            with st.container(border=True):
-                st.markdown(
-                    """
-                    <div class="result-card-title">
-                        <div class="card-title">해석 결과</div>
-                        <div class="mode-caption">대기 중</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.write("왼쪽 입력칸에 문장을 입력하고 번역하기 버튼을 눌러주세요.")
+        with st.container(border=True):
+            if saved is None:
+                st.caption("대기 중")
+                st.write("왼쪽 입력칸에 문장을 입력하고 아래 번역하기 버튼을 눌러주세요.")
 
-        elif saved.get("status") == "empty":
-            with st.container(border=True):
-                st.markdown(
-                    """
-                    <div class="result-card-title">
-                        <div class="card-title">해석 결과</div>
-                        <div class="mode-caption">입력 필요</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+            elif saved.get("status") == "empty":
+                st.caption("입력 필요")
                 st.write(saved.get("message", "번역할 문장을 입력해주세요."))
 
-        else:
-            mode = saved.get("mode", "")
-            matches = saved.get("matches", [])
-            items = representative_items(matches)
+            else:
+                mode = saved.get("mode", "")
+                matches = saved.get("matches", [])
+                items = representative_items(matches)
 
-            if saved.get("learned"):
-                st.success("이번에 생성한 새 피카츄어 표현을 임시 사전에 학습했습니다.")
-
-            display_items = items if st.session_state.show_all_results else items[:3]
-
-            with st.container(border=True):
-                st.markdown(
-                    f"""
-                    <div class="result-card-title">
-                        <div class="card-title">해석 결과</div>
-                        <div class="mode-caption">{escape(mode)}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
+                st.caption(mode)
                 st.caption("점수가 높은 해석부터 표시됩니다.")
+
+                display_items = items if st.session_state.show_all_results else items[:3]
 
                 if display_items:
                     for item in display_items:
@@ -1404,7 +1379,74 @@ with st.container():
                             unsafe_allow_html=True,
                         )
 
-            if len(items) > 3:
+    st.markdown('<div class="bottom-button-area">', unsafe_allow_html=True)
+
+    button_left, button_mid1, button_mid2, button_right = st.columns([1.7, 1, 1, 1.7])
+
+    with button_mid1:
+        translate_clicked = st.button("번역하기", type="primary", use_container_width=True)
+
+    with button_mid2:
+        random_clicked = st.button("예문", use_container_width=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if translate_clicked:
+        st.session_state.show_all_results = False
+
+        if not user_input.strip():
+            st.session_state.translation_result = {
+                "status": "empty",
+                "message": "번역할 문장을 입력해주세요.",
+            }
+        else:
+            mode, matches = translate_safely(user_input, auto_mode, manual_mode)
+            sentence = representative_sentence(matches, mode)
+
+            learned = False
+
+            if mode == "한국어 → 피카츄어" and sentence:
+                current_dict = get_current_dict()
+                if sentence not in current_dict:
+                    learned = learn_generated_translation(user_input, sentence)
+
+            if learned:
+                save_custom_dict_to_github(st.session_state.custom_pica_dict)
+
+            st.session_state.translation_result = {
+                "status": "ok",
+                "mode": mode,
+                "sentence": sentence,
+                "matches": matches,
+                "learned": learned,
+            }
+
+        st.rerun()
+
+    if random_clicked:
+        st.session_state.example_text = random.choice([
+            "피캇츄~! 피카피 피카!",
+            "피이카-피카! 피이카츄우우우우우",
+            "피~카~?",
+            "종강하고싶다",
+            "과제하기싫고 집가고싶다",
+            "전투 준비 완료 10만볼트",
+        ])
+        st.session_state.translation_result = None
+        st.session_state.show_all_results = False
+        st.rerun()
+
+    saved = st.session_state.translation_result
+
+    if saved and saved.get("status") == "ok":
+        mode = saved.get("mode", "")
+        matches = saved.get("matches", [])
+        items = representative_items(matches)
+
+        if len(items) > 3:
+            more_left, more_mid, more_right = st.columns([2.2, 1, 2.2])
+
+            with more_mid:
                 if not st.session_state.show_all_results:
                     if st.button("더보기", use_container_width=True):
                         st.session_state.show_all_results = True
@@ -1414,58 +1456,57 @@ with st.container():
                         st.session_state.show_all_results = False
                         st.rerun()
 
-            new_pika_can_register = False
-            register_candidates = []
-            register_pika_text = ""
+        new_pika_can_register = False
+        register_candidates = []
+        register_pika_text = ""
 
-            if mode == "피카츄어 → 한국어":
-                raw_input = normalize_text(user_input)
+        if mode == "피카츄어 → 한국어":
+            raw_input = normalize_text(user_input)
 
-                if raw_input and raw_input not in get_current_dict():
-                    for match in matches:
-                        if match.get("type") == "추정":
-                            for estimate in match.get("estimates", []):
-                                cleaned = clean_learned_meaning(estimate)
-
-                                if cleaned in ["새로운 피카츄어 표현"]:
-                                    continue
-
-                                if cleaned and cleaned not in register_candidates:
-                                    register_candidates.append(cleaned)
-
-                    if register_candidates:
-                        new_pika_can_register = True
-                        register_pika_text = raw_input
-
-            if new_pika_can_register:
-                with st.container(border=True):
-                    st.markdown("#### 새 표현으로 등록하기")
-                    st.caption("사전에 없는 새로운 피카츄어라면, 가장 알맞은 해석을 골라 등록할 수 있습니다.")
-
-                    selected_meaning = st.radio(
-                        "등록할 해석 선택",
-                        register_candidates,
-                        key=f"select_meaning_{register_pika_text}",
-                    )
-
-                    if st.button("선택한 해석으로 등록", use_container_width=True, key=f"register_{register_pika_text}"):
-                        ok, message = register_selected_pika_meaning(register_pika_text, selected_meaning)
-
-                        if ok:
-                            st.success(message)
-                            st.session_state.translation_result = None
-                            st.session_state.show_all_results = False
-                            st.rerun()
-                        else:
-                            st.warning(message)
-
-            with st.expander("단어별 해석 보기", expanded=False):
+            if raw_input and raw_input not in get_current_dict():
                 for match in matches:
-                    render_match_card(match)
-                    st.divider()
+                    if match.get("type") == "추정":
+                        for estimate in match.get("estimates", []):
+                            cleaned = clean_learned_meaning(estimate)
+
+                            if cleaned in ["새로운 피카츄어 표현"]:
+                                continue
+
+                            if cleaned and cleaned not in register_candidates:
+                                register_candidates.append(cleaned)
+
+                if register_candidates:
+                    new_pika_can_register = True
+                    register_pika_text = raw_input
+
+        if new_pika_can_register:
+            with st.container(border=True):
+                st.markdown("#### 새 표현으로 등록하기")
+                st.caption("사전에 없는 새로운 피카츄어라면, 가장 알맞은 해석을 골라 등록할 수 있습니다.")
+
+                selected_meaning = st.radio(
+                    "등록할 해석 선택",
+                    register_candidates,
+                    key=f"select_meaning_{register_pika_text}",
+                )
+
+                if st.button("선택한 해석으로 등록", use_container_width=True, key=f"register_{register_pika_text}"):
+                    ok, message = register_selected_pika_meaning(register_pika_text, selected_meaning)
+
+                    if ok:
+                        st.success(message)
+                        st.session_state.translation_result = None
+                        st.session_state.show_all_results = False
+                        st.rerun()
+                    else:
+                        st.warning(message)
+
+        with st.expander("단어별 해석 보기", expanded=False):
+            for match in matches:
+                render_match_card(match)
+                st.divider()
 
     st.markdown('</div>', unsafe_allow_html=True)
-
 
 st.divider()
 
