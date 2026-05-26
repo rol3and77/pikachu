@@ -741,50 +741,17 @@ with right:
                 st.divider()
 
 st.divider()
-st.subheader("새 피카츄어 표현 등록 / 복원")
-st.caption("새 표현은 현재 앱 세션에 임시 저장됩니다. JSON 파일로 다운로드해 백업하고, 다시 업로드해서 복원할 수 있습니다.")
 
-uploaded_json = st.file_uploader(
-    "백업 JSON 업로드로 새 표현 복원",
-    type=["json"],
-    help="이전에 다운로드한 custom_pikachu_dictionary.json 파일을 업로드하세요.",
-)
-
-if uploaded_json is not None:
-    try:
-        uploaded_data = json.load(uploaded_json)
-        if not isinstance(uploaded_data, dict):
-            st.error("올바른 사전 JSON 형식이 아닙니다. {\"피카츄어\": [\"뜻\"]} 형태여야 합니다.")
-        else:
-            restored_count = 0
-            custom = st.session_state.custom_pica_dict
-            for pika, meanings in uploaded_data.items():
-                pika = normalize_text(str(pika))
-                if isinstance(meanings, str):
-                    meanings = [meanings]
-                if not isinstance(meanings, list):
-                    continue
-                for meaning in meanings:
-                    meaning = normalize_text(str(meaning))
-                    if not pika or not meaning:
-                        continue
-                    custom.setdefault(pika, [])
-                    if meaning not in custom[pika]:
-                        custom[pika].append(meaning)
-                        restored_count += 1
-            st.session_state.custom_pica_dict = custom
-            st.session_state.translation_result = None
-            if restored_count > 0:
-                st.success(f"JSON에서 새 표현 {restored_count}개를 복원했습니다.")
-            else:
-                st.info("새로 추가할 표현이 없습니다. 이미 등록된 내용일 수 있습니다.")
-    except Exception as error:
-        st.error("JSON 파일을 읽는 중 오류가 발생했습니다.")
-        st.caption(str(error))
+st.subheader("새 피카츄어 표현 등록")
+st.caption("새 표현은 현재 앱 세션에 임시 저장됩니다. 필요한 표현을 등록한 뒤 맨 아래에서 JSON으로 백업할 수 있습니다.")
 
 with st.form("add_new_expression", clear_on_submit=True):
-    new_pika = st.text_input("새 피카츄어", placeholder="예: 피카츄우웅!")
-    new_meaning = st.text_input("뜻", placeholder="예: 신난 피카츄의 외침")
+    form_col1, form_col2 = st.columns([1, 1], gap="medium")
+    with form_col1:
+        new_pika = st.text_input("새 피카츄어", placeholder="예: 피카츄우웅!")
+    with form_col2:
+        new_meaning = st.text_input("뜻", placeholder="예: 신난 피카츄의 외침")
+
     submitted = st.form_submit_button("사전에 등록하기", use_container_width=True)
 
     if submitted:
@@ -812,9 +779,9 @@ if st.session_state.custom_pica_dict:
     with st.expander("내가 새로 등록한 표현 보기 / 삭제", expanded=False):
         delete_target = None
         for index, (pika, meanings) in enumerate(list(st.session_state.custom_pica_dict.items())):
-            row_left, row_right = st.columns([4, 1])
+            row_left, row_right = st.columns([5, 1])
             with row_left:
-                st.write(f"**{pika}** → {', '.join(meanings)}")
+                st.markdown(f"**{pika}**  →  {', '.join(meanings)}")
             with row_right:
                 if st.button("삭제", key=f"delete_custom_{index}", use_container_width=True):
                     delete_target = pika
@@ -824,21 +791,11 @@ if st.session_state.custom_pica_dict:
             st.session_state.translation_result = None
             st.success(f'"{delete_target}" 표현을 삭제했습니다.')
             st.rerun()
-
-    custom_json = json.dumps(
-        st.session_state.custom_pica_dict,
-        ensure_ascii=False,
-        indent=2,
-    )
-    st.download_button(
-        label="새로 등록한 표현 JSON 다운로드",
-        data=custom_json,
-        file_name="custom_pikachu_dictionary.json",
-        mime="application/json",
-        use_container_width=True,
-    )
+else:
+    st.info("아직 새로 등록한 표현이 없습니다.")
 
 st.divider()
+
 st.subheader("사전 검색")
 query = st.text_input("피카츄어 또는 한국어 뜻 검색", placeholder="예: 꼬부기, 10만볼트, 피카피")
 if query.strip():
@@ -852,3 +809,69 @@ if query.strip():
 with st.expander("등록된 피카츄어 사전 전체 보기", expanded=False):
     for pika, meanings in get_current_dict().items():
         st.write(f"**{pika}** → {', '.join(meanings)}")
+
+st.divider()
+
+with st.expander("백업 / 복원", expanded=False):
+    st.caption("새로 등록한 표현을 JSON으로 저장하거나, 이전에 저장한 JSON을 다시 불러올 수 있습니다.")
+
+    backup_col, restore_col = st.columns([1, 1], gap="large")
+
+    with backup_col:
+        st.markdown("#### 백업")
+        if st.session_state.custom_pica_dict:
+            custom_json = json.dumps(
+                st.session_state.custom_pica_dict,
+                ensure_ascii=False,
+                indent=2,
+            )
+            st.download_button(
+                label="JSON 다운로드",
+                data=custom_json,
+                file_name="custom_pikachu_dictionary.json",
+                mime="application/json",
+                use_container_width=True,
+            )
+        else:
+            st.info("다운로드할 새 표현이 없습니다.")
+
+    with restore_col:
+        st.markdown("#### 복원")
+        uploaded_json = st.file_uploader(
+            "JSON 업로드",
+            type=["json"],
+            help="이전에 다운로드한 custom_pikachu_dictionary.json 파일을 업로드하세요.",
+            label_visibility="collapsed",
+        )
+
+        if uploaded_json is not None:
+            try:
+                uploaded_data = json.load(uploaded_json)
+                if not isinstance(uploaded_data, dict):
+                    st.error("올바른 사전 JSON 형식이 아닙니다. {\"피카츄어\": [\"뜻\"]} 형태여야 합니다.")
+                else:
+                    restored_count = 0
+                    custom = st.session_state.custom_pica_dict
+                    for pika, meanings in uploaded_data.items():
+                        pika = normalize_text(str(pika))
+                        if isinstance(meanings, str):
+                            meanings = [meanings]
+                        if not isinstance(meanings, list):
+                            continue
+                        for meaning in meanings:
+                            meaning = normalize_text(str(meaning))
+                            if not pika or not meaning:
+                                continue
+                            custom.setdefault(pika, [])
+                            if meaning not in custom[pika]:
+                                custom[pika].append(meaning)
+                                restored_count += 1
+                    st.session_state.custom_pica_dict = custom
+                    st.session_state.translation_result = None
+                    if restored_count > 0:
+                        st.success(f"JSON에서 새 표현 {restored_count}개를 복원했습니다.")
+                    else:
+                        st.info("새로 추가할 표현이 없습니다. 이미 등록된 내용일 수 있습니다.")
+            except Exception as error:
+                st.error("JSON 파일을 읽는 중 오류가 발생했습니다.")
+                st.caption(str(er
