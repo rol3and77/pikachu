@@ -110,18 +110,28 @@ def build_reverse_dict() -> dict[str, list[str]]:
 REVERSE_DICT = build_reverse_dict()
 
 
-def guess_pika_meaning(word: str) -> dict:
-    estimates = []
-    reasons = []
+def guess_pika_meaning(word: str) -> list[str]:
+    guesses = []
 
-    similarity_results = guess_by_similarity(word)
-    if similarity_results:
-        best = similarity_results[0]
-        estimates.append(best["meaning"])
-        for item in similarity_results:
-            reasons.append(
-                f'입력한 표현이 등록 표현 "{item["candidate"]}"와 유사합니다. '
-                f'등록 뜻은 "{item["meaning"]}"이고, 유사도는 {item["s
+    if "우우우" in word or "츄우" in word:
+        guesses.append("전기 기술 또는 강한 공격 표현일 가능성이 큼")
+    if "?" in word:
+        guesses.append("질문, 확인, 되묻는 표현일 가능성이 큼")
+    if "!" in word and len(word) > 12:
+        guesses.append("기술명 또는 강한 감정 표현일 가능성이 큼")
+    elif "!" in word:
+        guesses.append("강조, 기쁨, 놀람 계열 표현일 가능성이 큼")
+    if "~" in word:
+        guesses.append("감정을 길게 늘여 말하는 표현일 가능성이 큼")
+    if "-" in word:
+        guesses.append("감정이 끊기거나 조심스럽게 말하는 표현일 가능성이 있음")
+
+    guesses += guess_by_similarity(word)
+
+    if not guesses:
+        guesses.append("아직 사전에 없는 표현입니다. 비슷한 등록 표현도 뚜렷하지 않습니다.")
+
+    return list(dict.fromkeys(guesses))
 
 
 def guess_by_similarity(word: str) -> list[str]:
